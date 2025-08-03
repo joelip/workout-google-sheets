@@ -69,6 +69,38 @@ export class NotionClient {
     return page.id;
   }
 
+  async createDayWorkoutPage(title: string, session: WorkoutSession): Promise<string> {
+    const blocks = await this.buildSingleSessionContent(session);
+    
+    const initialBlocks = blocks.slice(0, 100);
+    const remainingBlocks = blocks.slice(100);
+
+    const page = await this.notion.pages.create({
+      parent: {
+        type: 'page_id',
+        page_id: this.parentPageId,
+      },
+      properties: {
+        title: {
+          title: [
+            {
+              text: {
+                content: title,
+              },
+            },
+          ],
+        },
+      },
+      children: initialBlocks,
+    });
+
+    if (remainingBlocks.length > 0) {
+      await this.appendBlocksInChunks(page.id, remainingBlocks);
+    }
+
+    return page.id;
+  }
+
   private async buildPageContent(sessions: WorkoutSession[]): Promise<any[]> {
     const blocks: any[] = [];
 
@@ -181,6 +213,107 @@ export class NotionClient {
             },
           });
         }
+      }
+    }
+
+    return blocks;
+  }
+
+  private async buildSingleSessionContent(session: WorkoutSession): Promise<any[]> {
+    const blocks: any[] = [];
+
+    for (const section of session.sections) {
+      if (section.type === 'section' && section.header) {
+        blocks.push({
+          object: 'block',
+          type: 'paragraph',
+          paragraph: {
+            rich_text: [
+              {
+                type: 'text',
+                text: {
+                  content: section.header,
+                },
+              },
+            ],
+          },
+        });
+        
+        for (const item of section.content) {
+          blocks.push({
+            object: 'block',
+            type: 'bulleted_list_item',
+            bulleted_list_item: {
+              rich_text: [
+                {
+                  type: 'text',
+                  text: {
+                    content: item,
+                  },
+                },
+              ],
+            },
+          });
+        }
+      } else if (section.type === 'upper_lower' && section.header) {
+        blocks.push({
+          object: 'block',
+          type: 'heading_3',
+          heading_3: {
+            rich_text: [
+              {
+                type: 'text',
+                text: {
+                  content: section.header,
+                },
+              },
+            ],
+          },
+        });
+        
+        for (const item of section.content) {
+          blocks.push({
+            object: 'block',
+            type: 'bulleted_list_item',
+            bulleted_list_item: {
+              rich_text: [
+                {
+                  type: 'text',
+                  text: {
+                    content: item,
+                  },
+                },
+              ],
+            },
+          });
+        }
+      } else if (section.type === 'text') {
+        for (const item of section.content) {
+          blocks.push({
+            object: 'block',
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [
+                {
+                  type: 'text',
+                  text: {
+                    content: item,
+                  },
+                },
+              ],
+            },
+          });
+        }
+      }
+
+      for (const youtubeUrl of section.youtubeLinks) {
+        blocks.push({
+          object: 'block',
+          type: 'embed',
+          embed: {
+            url: youtubeUrl,
+          },
+        });
       }
     }
 

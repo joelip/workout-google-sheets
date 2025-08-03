@@ -3,6 +3,10 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "create-week": "bun run src/create-week.ts",
+    "create-day": "bun run src/create-day.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -11,6 +15,7 @@
   },
   "dependencies": {
     "@notionhq/client": "^4.0.1",
+    "commander": "^14.0.0",
     "dotenv": "^17.2.1",
     "googleapis": "^154.1.0"
   }

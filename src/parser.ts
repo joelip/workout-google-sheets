@@ -23,6 +23,10 @@ export class WorkoutParser {
     return sessions;
   }
 
+  static parseSingleCell(cellContent: string): WorkoutSession {
+    return this.parseCellData(cellContent, 1);
+  }
+
   private static parseCellData(cellContent: string, sessionNumber: number): WorkoutSession {
     const lines = cellContent.split('\n').map(line => line.trim()).filter(line => line);
     const sections: any[] = [];
