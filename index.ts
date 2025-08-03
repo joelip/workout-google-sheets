@@ -1,5 +1,7 @@
 import { GoogleSheetsAuth } from './src/auth';
 import { GoogleSheetsClient } from './src/sheets';
+import { NotionClient } from './src/notion';
+import { WorkoutParser } from './src/parser';
 
 async function main() {
   try {
@@ -33,8 +35,22 @@ async function main() {
     console.log(`Extracting data from range: ${cellRange}`);
     const data = await sheetsClient.getCellRange(sheetInfo.id, cellRange);
     
-    console.log('Cell data:');
-    console.table(data);
+    console.log('Parsing workout data...');
+    const sessions = WorkoutParser.parseWorkoutData(data);
+    
+    console.log(`Found ${sessions.length} workout sessions:`);
+    sessions.forEach((session) => {
+      console.log(`Session ${session.sessionNumber}: ${session.sections.length} sections`);
+    });
+    
+    console.log('Connecting to Notion...');
+    const notionClient = await NotionClient.fromConfigFile();
+    
+    const pageTitle = WorkoutParser.generatePageTitle(ownerEmail, sheetTitle);
+    console.log(`Creating Notion page: ${pageTitle}`);
+    
+    const pageId = await notionClient.createWorkoutPage(pageTitle, sessions);
+    console.log(`✅ Successfully created Notion page: ${pageId}`);
     
   } catch (error) {
     console.error('Error:', error);

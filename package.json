@@ -10,6 +10,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@notionhq/client": "^4.0.1",
     "dotenv": "^17.2.1",
     "googleapis": "^154.1.0"
   }

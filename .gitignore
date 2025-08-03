@@ -26,6 +26,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 credentials.json
 token.json
 
+# Configuration files with secrets
+config.json
+
 # caches
 .eslintcache
 .cache
