@@ -1,0 +1,16 @@
+{
+  "name": "workout-google-sheets",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "googleapis": "^154.1.0"
+  }
+}
