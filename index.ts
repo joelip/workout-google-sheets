@@ -52,6 +52,7 @@ async function main() {
     const pageId = await notionClient.createWorkoutPage(pageTitle, sessions);
     console.log(`✅ Successfully created Notion page: ${pageId}`);
     
+    process.exit(0);
   } catch (error) {
     console.error('Error:', error);
     process.exit(1);
