@@ -110,7 +110,7 @@ export class GoogleSheetsAuth {
     // Check if token is expired
     const now = Date.now();
     const expiry = this.oAuth2Client.credentials.expiry_date;
-    
+
     if (expiry && now >= expiry) {
       // Token is expired, try to refresh it
       if (this.oAuth2Client.credentials.refresh_token) {

@@ -4,6 +4,8 @@ export class WorkoutParser {
   private static readonly SECTION_HEADER_PATTERN = /^[A-Z]\d*\./;
   private static readonly UPPER_LOWER_PATTERN = /^(upper body|lower body):$/i;
   private static readonly YOUTUBE_URL_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
+  private static readonly PLYO_PROGRESSION_PATTERN = /(?:plyo progression|deep tier plyo):/i;
+  private static readonly ASTERISK_PREFIX_PATTERN = /^\*{2,}/;
 
   static parseWorkoutData(cellData: any[][]): WorkoutSession[] {
     const sessions: WorkoutSession[] = [];
@@ -53,6 +55,18 @@ export class WorkoutParser {
           content: [],
           youtubeLinks: []
         };
+      } else if (this.isStandaloneParagraph(line)) {
+        // Treat as standalone paragraph text, not nested in current section
+        const youtubeLinks = this.extractYouTubeLinks(line);
+        const cleanedLine = this.removeYouTubeLinks(line).trim();
+
+        if (cleanedLine || youtubeLinks.length > 0) {
+          sections.push({
+            type: 'text',
+            content: cleanedLine ? [cleanedLine] : [],
+            youtubeLinks: youtubeLinks
+          });
+        }
       } else if (currentSection) {
         const youtubeLinks = this.extractYouTubeLinks(line);
         if (youtubeLinks.length > 0) {
@@ -93,6 +107,18 @@ export class WorkoutParser {
 
   private static isUpperLowerBody(line: string): boolean {
     return this.UPPER_LOWER_PATTERN.test(line.trim());
+  }
+
+  private static isPlyoProgression(line: string): boolean {
+    return this.PLYO_PROGRESSION_PATTERN.test(line);
+  }
+
+  private static isAsteriskLine(line: string): boolean {
+    return this.ASTERISK_PREFIX_PATTERN.test(line.trim());
+  }
+
+  private static isStandaloneParagraph(line: string): boolean {
+    return this.isPlyoProgression(line) || this.isAsteriskLine(line);
   }
 
   private static extractYouTubeLinks(text: string): string[] {

@@ -37,13 +37,13 @@ export class NotionClient {
     return new NotionClient(config);
   }
 
-  async createWorkoutPage(title: string, sessions: WorkoutSession[]): Promise<string> {
+  async createWorkoutPage(title: string, sessions: WorkoutSession[], icon?: string): Promise<string> {
     const allBlocks = await this.buildPageContent(sessions);
 
     const initialBlocks = allBlocks.slice(0, 100);
     const remainingBlocks = allBlocks.slice(100);
 
-    const page = await this.notion.pages.create({
+    const pageData: any = {
       parent: {
         type: 'page_id',
         page_id: this.parentPageId,
@@ -60,7 +60,16 @@ export class NotionClient {
         },
       },
       children: initialBlocks,
-    });
+    };
+
+    if (icon) {
+      pageData.icon = {
+        type: 'emoji',
+        emoji: icon,
+      };
+    }
+
+    const page = await this.notion.pages.create(pageData);
 
     if (remainingBlocks.length > 0) {
       await this.appendBlocksInChunks(page.id, remainingBlocks);
@@ -71,7 +80,7 @@ export class NotionClient {
 
   async createDayWorkoutPage(title: string, session: WorkoutSession): Promise<string> {
     const blocks = await this.buildSingleSessionContent(session);
-    
+
     const initialBlocks = blocks.slice(0, 100);
     const remainingBlocks = blocks.slice(100);
 
@@ -238,7 +247,7 @@ export class NotionClient {
             ],
           },
         });
-        
+
         for (const item of section.content) {
           blocks.push({
             object: 'block',
@@ -270,7 +279,7 @@ export class NotionClient {
             ],
           },
         });
-        
+
         for (const item of section.content) {
           blocks.push({
             object: 'block',
