@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "create-week": "bun run src/create-week.ts",
-    "create-day": "bun run src/create-day.ts"
+    "create-day": "bun run src/create-day.ts",
+    "post-workout": "bun run src/post-workout.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
