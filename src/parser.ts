@@ -4,7 +4,7 @@ export class WorkoutParser {
   private static readonly SECTION_HEADER_PATTERN = /^[A-Z]\d*\./;
   private static readonly UPPER_LOWER_PATTERN = /^(upper body|lower body):$/i;
   private static readonly YOUTUBE_URL_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
-  private static readonly PLYO_PROGRESSION_PATTERN = /(?:plyo progression|deep tier plyo):/i;
+  private static readonly PLYO_PROGRESSION_PATTERN = /^(?:plyo progression|deep tier plyo):?$/i;
   private static readonly ASTERISK_PREFIX_PATTERN = /^\*{2,}/;
 
   static parseWorkoutData(cellData: any[][]): WorkoutSession[] {

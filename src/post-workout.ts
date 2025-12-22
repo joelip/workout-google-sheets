@@ -80,62 +80,82 @@ class PostWorkoutClient extends NotionClient {
 
   private async extractBlocksIteratively(rootBlockId: string): Promise<any[]> {
     const allBlocks: any[] = [];
-    const stack: Array<{ blockId: string; depth: number; insertIndex: number }> = [
-      { blockId: rootBlockId, depth: 0, insertIndex: 0 }
+
+    // Use a queue that stores parent block ID and depth
+    // Process one parent at a time to maintain correct document order
+    const queue: Array<{ blockId: string; depth: number }> = [
+      { blockId: rootBlockId, depth: 0 }
     ];
 
-    while (stack.length > 0) {
-      // Process blocks in batches for better performance
-      const batchSize = Math.min(5, stack.length);
-      const batch = stack.splice(0, batchSize);
+    while (queue.length > 0) {
+      const { blockId, depth } = queue.shift()!;
 
-      // Fetch all blocks in the current batch concurrently
-      const batchPromises = batch.map(async ({ blockId, depth, insertIndex }) => {
-        const blocks: any[] = [];
-        let hasMore = true;
-        let nextCursor: string | undefined;
+      // Fetch all children of this block
+      const children: any[] = [];
+      let hasMore = true;
+      let nextCursor: string | undefined;
 
-        while (hasMore) {
-          const response = await this.notion.blocks.children.list({
-            block_id: blockId,
-            page_size: 100,
-            start_cursor: nextCursor,
-          });
+      while (hasMore) {
+        const response = await this.notion.blocks.children.list({
+          block_id: blockId,
+          page_size: 100,
+          start_cursor: nextCursor,
+        });
 
-          for (const block of response.results) {
-            (block as any).depth = depth;
-            blocks.push(block);
-          }
-
-          hasMore = response.has_more;
-          nextCursor = response.next_cursor || undefined;
+        for (const block of response.results) {
+          (block as any).depth = depth;
+          children.push(block);
         }
 
-        return { blocks, depth, insertIndex };
-      });
+        hasMore = response.has_more;
+        nextCursor = response.next_cursor || undefined;
+      }
 
-      const batchResults = await Promise.all(batchPromises);
+      // For each child, add it to allBlocks and queue its children if any
+      // We need to insert children immediately after their parent in the output
+      // To do this correctly, we'll collect blocks with their children inline
+      for (const child of children) {
+        allBlocks.push(child);
 
-      // Process results and add children to stack
-      for (const { blocks, depth, insertIndex } of batchResults) {
-        // Insert blocks at the correct position to maintain document order
-        allBlocks.splice(insertIndex, 0, ...blocks);
-
-        // Add blocks with children to the stack (in reverse order for DFS)
-        const blocksWithChildren = blocks.filter(block => block.has_children).reverse();
-        for (let i = 0; i < blocksWithChildren.length; i++) {
-          const block = blocksWithChildren[i];
-          const childInsertIndex = insertIndex + blocks.indexOf(block) + 1;
-          stack.unshift({
-            blockId: block.id,
-            depth: depth + 1,
-            insertIndex: childInsertIndex
-          });
+        if (child.has_children) {
+          // Recursively fetch and insert this child's descendants right here
+          const descendants = await this.extractDescendants(child.id, depth + 1);
+          allBlocks.push(...descendants);
         }
       }
     }
 
     return allBlocks;
+  }
+
+  private async extractDescendants(blockId: string, depth: number): Promise<any[]> {
+    const descendants: any[] = [];
+
+    let hasMore = true;
+    let nextCursor: string | undefined;
+
+    while (hasMore) {
+      const response = await this.notion.blocks.children.list({
+        block_id: blockId,
+        page_size: 100,
+        start_cursor: nextCursor,
+      });
+
+      for (const block of response.results) {
+        (block as any).depth = depth;
+        descendants.push(block);
+
+        if (block.has_children) {
+          const childDescendants = await this.extractDescendants(block.id, depth + 1);
+          descendants.push(...childDescendants);
+        }
+      }
+
+      hasMore = response.has_more;
+      nextCursor = response.next_cursor || undefined;
+    }
+
+    return descendants;
   }
 
   convertBlocksToMarkdown(blocks: any[]): string {
