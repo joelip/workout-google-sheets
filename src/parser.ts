@@ -56,6 +56,11 @@ export class WorkoutParser {
           youtubeLinks: []
         };
       } else if (this.isStandaloneParagraph(line)) {
+        // Push current section first before adding standalone paragraph
+        if (currentSection) {
+          sections.push(currentSection);
+          currentSection = null;
+        }
         // Treat as standalone paragraph text, not nested in current section
         const youtubeLinks = this.extractYouTubeLinks(line);
         const cleanedLine = this.removeYouTubeLinks(line).trim();

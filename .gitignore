@@ -5,6 +5,7 @@ node_modules
 out
 dist
 *.tgz
+dry-run-output.json
 
 # code coverage
 coverage

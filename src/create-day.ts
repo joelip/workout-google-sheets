@@ -37,6 +37,7 @@ async function main() {
     .option('--sheet-owner <email>', 'Google Sheets owner email')
     .option('--sheet-title <title>', 'Google Sheets document title')
     .option('--session-cell <cell>', 'Single cell reference (e.g., B2)')
+    .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
     .parse();
 
   const options = program.opts();
@@ -87,7 +88,14 @@ async function main() {
     const session = WorkoutParser.parseSingleCell(cellContent);
     
     console.log(`Found workout session with ${session.sections.length} sections`);
-    
+
+    if (options.dryRun) {
+      const output = JSON.stringify({ rawContent: cellContent, parsed: session }, null, 2);
+      await fs.writeFile('dry-run-output.json', output, 'utf8');
+      console.log('Dry run complete. Output written to dry-run-output.json');
+      process.exit(0);
+    }
+
     console.log('Connecting to Notion...');
     const notionClient = await NotionClient.fromConfigFile();
     
