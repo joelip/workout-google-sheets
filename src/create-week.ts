@@ -65,7 +65,7 @@ async function main() {
     }
 
     if (options.dryRun && options.dumpGoogleResponse) {
-      console.error('Cannot use --dry-run and --dump-google-response together');
+      console.error('Cannot use --dry-run and --dump-google-response together. Use at most one of these options.');
       process.exit(1);
     }
 
@@ -91,8 +91,8 @@ async function main() {
     if (options.dumpGoogleResponse) {
       const responseData = await sheetsClient.getCellRangeResponseData(sheetInfo.id, cellRange);
       const output = JSON.stringify(responseData, null, 2);
-      await fs.writeFile('google-response-output.json', output, 'utf8');
-      console.log('Dump complete. Output written to google-response-output.json');
+      await fs.writeFile('create-week-google-response-output.json', output, 'utf8');
+      console.log('Dump complete. Output written to create-week-google-response-output.json');
       process.exit(0);
     }
 
@@ -114,7 +114,7 @@ async function main() {
     }
 
     if (typeof currentWeekNumber !== 'number') {
-      console.error('Missing "data.currentWeekNumber" in config.json');
+      console.error('Missing "data.currentWeekNumber" in config.json (required when creating Notion pages)');
       process.exit(1);
     }
 
