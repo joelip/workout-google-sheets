@@ -86,8 +86,8 @@ async function main() {
     if (options.dumpGoogleResponse) {
       const responseData = await sheetsClient.getCellRangeResponseData(sheetInfo.id, sessionCell);
       const output = JSON.stringify(responseData, null, 2);
-      await fs.writeFile('dry-run-output.json', output, 'utf8');
-      console.log('Dump complete. Output written to dry-run-output.json');
+      await fs.writeFile('google-response-output.json', output, 'utf8');
+      console.log('Dump complete. Output written to google-response-output.json');
       process.exit(0);
     }
 
