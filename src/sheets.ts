@@ -54,6 +54,19 @@ export class GoogleSheetsClient {
     }
   }
 
+  async getCellRangeResponseData(spreadsheetId: string, range: string): Promise<any> {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+      });
+
+      return response.data;
+    } catch (error) {
+      throw new Error(`Error getting cell range ${range}: ${error}`);
+    }
+  }
+
   async getSheetMetadata(spreadsheetId: string): Promise<any> {
     try {
       const response = await this.sheets.spreadsheets.get({
