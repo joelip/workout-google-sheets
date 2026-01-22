@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { google, sheets_v4 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
 export interface SheetInfo {
@@ -54,14 +54,14 @@ export class GoogleSheetsClient {
     }
   }
 
-  async getCellRangeResponseData(spreadsheetId: string, range: string): Promise<any> {
+  async getCellRangeResponseData(spreadsheetId: string, range: string): Promise<sheets_v4.Schema$ValueRange> {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId,
         range,
       });
 
-      return response.data;
+      return response.data as sheets_v4.Schema$ValueRange;
     } catch (error) {
       throw new Error(`Error getting cell range ${range}: ${error}`);
     }
