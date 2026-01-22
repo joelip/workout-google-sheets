@@ -69,11 +69,6 @@ async function main() {
       process.exit(1);
     }
 
-    if (!options.dryRun && !options.dumpGoogleResponse && typeof currentWeekNumber !== 'number') {
-      console.error('Missing "data.currentWeekNumber" in config.json');
-      process.exit(1);
-    }
-
     const auth = new GoogleSheetsAuth();
     console.log('Authenticating with Google Sheets API...');
     const oAuth2Client = await auth.authenticate();
