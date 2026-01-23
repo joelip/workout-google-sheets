@@ -32,7 +32,7 @@ async function saveConfig(config: Config): Promise<void> {
   await fs.writeFile(CONFIG_FILE_PATH, `${configJson}\n`, 'utf8');
 }
 
-async function main() {
+export async function createWeek(argv: string[] = process.argv): Promise<number> {
   const program = new Command();
 
   program
@@ -43,7 +43,7 @@ async function main() {
     .option('--cell-range <range>', 'Cell range to extract (e.g., B2:E5)')
     .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
     .option('--dump-google-response', 'Dump Google Sheets API response body to file instead of creating Notion page')
-    .parse();
+    .parse(argv);
 
   const options = program.opts();
 
@@ -61,12 +61,12 @@ async function main() {
       console.error('  --sheet-title <title>     Google Sheets document title');
       console.error('  --cell-range <range>      Cell range to extract (e.g., B2:E5)\n');
       console.error('Or set defaults in config.json');
-      process.exit(1);
+      return 1;
     }
 
     if (options.dryRun && options.dumpGoogleResponse) {
       console.error('Cannot use --dry-run and --dump-google-response together. Use at most one of these options.');
-      process.exit(1);
+      return 1;
     }
 
     const auth = new GoogleSheetsAuth();
@@ -80,7 +80,7 @@ async function main() {
 
     if (!sheetInfo) {
       console.log('Sheet not found');
-      process.exit(1);
+      return 1;
     }
 
     console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
@@ -93,7 +93,7 @@ async function main() {
       const output = JSON.stringify(responseData, null, 2);
       await fs.writeFile('create-week-google-response-output.json', output, 'utf8');
       console.log('Dump complete. Output written to create-week-google-response-output.json');
-      process.exit(0);
+      return 0;
     }
 
     const data = await sheetsClient.getCellRange(sheetInfo.id, cellRange);
@@ -110,12 +110,12 @@ async function main() {
       const output = JSON.stringify(sessions, null, 2);
       await fs.writeFile('dry-run-output.json', output, 'utf8');
       console.log('Dry run complete. Output written to dry-run-output.json');
-      process.exit(0);
+      return 0;
     }
 
     if (typeof currentWeekNumber !== 'number') {
       console.error('Missing "data.currentWeekNumber" in config.json (required when creating Notion pages)');
-      process.exit(1);
+      return 1;
     }
 
     console.log('Connecting to Notion...');
@@ -145,11 +145,13 @@ async function main() {
 
     const pageId = await notionClient.createWorkoutPage(pageTitle, sessions, pageIcon);
     console.log(`✅ Successfully created Notion page: ${pageId}`);
-
+    return 0;
   } catch (error) {
     console.error('Error:', error);
-    process.exit(1);
+    return 1;
   }
 }
 
-main();
+if (import.meta.main) {
+  createWeek().then((exitCode) => process.exit(exitCode));
+}
