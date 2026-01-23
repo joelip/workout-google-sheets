@@ -28,7 +28,12 @@ function formatDateM_D_YYYY(date: Date): string {
   return `${month}/${day}/${year}`;
 }
 
-async function main() {
+export async function createDay(
+  argv: string[] = process.argv,
+  opts?: {
+    now?: () => Date;
+  }
+): Promise<number> {
   const program = new Command();
   
   program
@@ -39,7 +44,7 @@ async function main() {
     .option('--session-cell <cell>', 'Single cell reference (e.g., B2)')
     .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
     .option('--dump-google-response', 'Dump Google Sheets API response body to file instead of creating Notion page')
-    .parse();
+    .parse(argv);
 
   const options = program.opts();
   
@@ -56,12 +61,12 @@ async function main() {
       console.error('  --sheet-title <title>     Google Sheets document title');
       console.error('  --session-cell <cell>     Single cell reference (e.g., B2)\n');
       console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
-      process.exit(1);
+      return 1;
     }
 
     if (options.dryRun && options.dumpGoogleResponse) {
       console.error('Cannot use --dry-run and --dump-google-response together. Use at most one of these options.');
-      process.exit(1);
+      return 1;
     }
 
     const auth = new GoogleSheetsAuth();
@@ -75,7 +80,7 @@ async function main() {
     
     if (!sheetInfo) {
       console.log('Sheet not found');
-      process.exit(1);
+      return 1;
     }
     
     console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
@@ -88,14 +93,14 @@ async function main() {
       const output = JSON.stringify(responseData, null, 2);
       await fs.writeFile('create-day-google-response-output.json', output, 'utf8');
       console.log('Dump complete. Output written to create-day-google-response-output.json');
-      process.exit(0);
+      return 0;
     }
 
     const data = await sheetsClient.getCellRange(sheetInfo.id, sessionCell);
     
     if (!data || data.length === 0 || !data[0] || !data[0][0]) {
       console.log('No data found in the specified cell');
-      process.exit(1);
+      return 1;
     }
     
     const cellContent = data[0][0];
@@ -108,23 +113,25 @@ async function main() {
       const output = JSON.stringify({ rawContent: cellContent, parsed: session }, null, 2);
       await fs.writeFile('dry-run-output.json', output, 'utf8');
       console.log('Dry run complete. Output written to dry-run-output.json');
-      process.exit(0);
+      return 0;
     }
 
     console.log('Connecting to Notion...');
     const notionClient = await NotionClient.fromConfigFile();
     
-    const today = new Date();
+    const today = (opts?.now ?? (() => new Date()))();
     const pageTitle = formatDateM_D_YYYY(today);
     console.log(`Creating Notion page: ${pageTitle}`);
     
     const pageId = await notionClient.createDayWorkoutPage(pageTitle, session);
     console.log(`✅ Successfully created Notion page: ${pageId}`);
-    
+    return 0;
   } catch (error) {
     console.error('Error:', error);
-    process.exit(1);
+    return 1;
   }
 }
 
-main();
+if (import.meta.main) {
+  createDay().then((exitCode) => process.exit(exitCode));
+}
