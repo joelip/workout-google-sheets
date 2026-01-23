@@ -42,6 +42,7 @@ async function main() {
     .option('--sheet-title <title>', 'Google Sheets document title')
     .option('--cell-range <range>', 'Cell range to extract (e.g., B2:E5)')
     .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
+    .option('--dump-google-response', 'Dump Google Sheets API response body to file instead of creating Notion page')
     .parse();
 
   const options = program.opts();
@@ -63,8 +64,8 @@ async function main() {
       process.exit(1);
     }
 
-    if (typeof currentWeekNumber !== 'number') {
-      console.error('Missing "data.currentWeekNumber" in config.json');
+    if (options.dryRun && options.dumpGoogleResponse) {
+      console.error('Cannot use --dry-run and --dump-google-response together. Use at most one of these options.');
       process.exit(1);
     }
 
@@ -86,6 +87,15 @@ async function main() {
     console.log(`URL: ${sheetInfo.url}`);
 
     console.log(`Extracting data from range: ${cellRange}`);
+
+    if (options.dumpGoogleResponse) {
+      const responseData = await sheetsClient.getCellRangeResponseData(sheetInfo.id, cellRange);
+      const output = JSON.stringify(responseData, null, 2);
+      await fs.writeFile('create-week-google-response-output.json', output, 'utf8');
+      console.log('Dump complete. Output written to create-week-google-response-output.json');
+      process.exit(0);
+    }
+
     const data = await sheetsClient.getCellRange(sheetInfo.id, cellRange);
 
     console.log('Parsing workout data...');
@@ -101,6 +111,11 @@ async function main() {
       await fs.writeFile('dry-run-output.json', output, 'utf8');
       console.log('Dry run complete. Output written to dry-run-output.json');
       process.exit(0);
+    }
+
+    if (typeof currentWeekNumber !== 'number') {
+      console.error('Missing "data.currentWeekNumber" in config.json (required when creating Notion pages)');
+      process.exit(1);
     }
 
     console.log('Connecting to Notion...');

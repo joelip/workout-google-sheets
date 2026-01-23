@@ -38,6 +38,7 @@ async function main() {
     .option('--sheet-title <title>', 'Google Sheets document title')
     .option('--session-cell <cell>', 'Single cell reference (e.g., B2)')
     .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
+    .option('--dump-google-response', 'Dump Google Sheets API response body to file instead of creating Notion page')
     .parse();
 
   const options = program.opts();
@@ -55,6 +56,11 @@ async function main() {
       console.error('  --sheet-title <title>     Google Sheets document title');
       console.error('  --session-cell <cell>     Single cell reference (e.g., B2)\n');
       console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
+      process.exit(1);
+    }
+
+    if (options.dryRun && options.dumpGoogleResponse) {
+      console.error('Cannot use --dry-run and --dump-google-response together. Use at most one of these options.');
       process.exit(1);
     }
 
@@ -76,6 +82,15 @@ async function main() {
     console.log(`URL: ${sheetInfo.url}`);
     
     console.log(`Extracting data from cell: ${sessionCell}`);
+
+    if (options.dumpGoogleResponse) {
+      const responseData = await sheetsClient.getCellRangeResponseData(sheetInfo.id, sessionCell);
+      const output = JSON.stringify(responseData, null, 2);
+      await fs.writeFile('create-day-google-response-output.json', output, 'utf8');
+      console.log('Dump complete. Output written to create-day-google-response-output.json');
+      process.exit(0);
+    }
+
     const data = await sheetsClient.getCellRange(sheetInfo.id, sessionCell);
     
     if (!data || data.length === 0 || !data[0] || !data[0][0]) {

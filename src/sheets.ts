@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { drive_v3, google, sheets_v4 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
 export interface SheetInfo {
@@ -8,8 +8,8 @@ export interface SheetInfo {
 }
 
 export class GoogleSheetsClient {
-  private sheets: any;
-  private drive: any;
+  private sheets: sheets_v4.Sheets;
+  private drive: drive_v3.Drive;
 
   constructor(auth: OAuth2Client) {
     this.sheets = google.sheets({ version: 'v4', auth });
@@ -31,6 +31,9 @@ export class GoogleSheetsClient {
       }
 
       const file = files[0];
+      if (!file) {
+        return null;
+      }
       return {
         id: file.id!,
         name: file.name!,
@@ -41,17 +44,26 @@ export class GoogleSheetsClient {
     }
   }
 
-  async getCellRange(spreadsheetId: string, range: string): Promise<any[][]> {
+  private async fetchCellRange(spreadsheetId: string, range: string): Promise<sheets_v4.Schema$ValueRange> {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId,
         range,
       });
 
-      return response.data.values || [];
+      return response.data as sheets_v4.Schema$ValueRange;
     } catch (error) {
       throw new Error(`Error getting cell range ${range}: ${error}`);
     }
+  }
+
+  async getCellRange(spreadsheetId: string, range: string): Promise<any[][]> {
+    const responseData = await this.fetchCellRange(spreadsheetId, range);
+    return responseData.values || [];
+  }
+
+  async getCellRangeResponseData(spreadsheetId: string, range: string): Promise<sheets_v4.Schema$ValueRange> {
+    return this.fetchCellRange(spreadsheetId, range);
   }
 
   async getSheetMetadata(spreadsheetId: string): Promise<any> {
