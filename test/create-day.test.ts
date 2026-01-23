@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, jest, mock, test } from 'bun:test';
+import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -84,7 +84,12 @@ const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  mockAuthenticate.mockClear();
+  mockFindSheetByOwnerAndTitle.mockClear();
+  mockGetCellRange.mockClear();
+  mockGetCellRangeResponseData.mockClear();
+  mockCreateDayWorkoutPage.mockClear();
+  mockNotionFromConfigFile.mockClear();
   console.log = () => {};
   console.error = () => {};
 });
@@ -141,6 +146,31 @@ test('writes create-day-google-response-output.json for --dump-google-response',
 
     const outputText = await readFile('create-day-google-response-output.json', 'utf8');
     expect(outputText).toBe(createDayFixtureText);
+  });
+});
+
+test('returns exit code 1 when the Google Sheet cannot be found', async () => {
+  mockFindSheetByOwnerAndTitle.mockResolvedValueOnce(null as any);
+
+  await withTempCwd(async () => {
+    await writeFile('config.json', JSON.stringify(configWithDefaults()), 'utf8');
+
+    const exitCode = await createDay(['node', 'create-day', '--session-cell', 'E2']);
+    expect(exitCode).toBe(1);
+    expect(mockGetCellRange).not.toHaveBeenCalled();
+    expect(mockNotionFromConfigFile).not.toHaveBeenCalled();
+  });
+});
+
+test('returns exit code 1 when the specified cell contains no data', async () => {
+  mockGetCellRange.mockResolvedValueOnce([] as any);
+
+  await withTempCwd(async () => {
+    await writeFile('config.json', JSON.stringify(configWithDefaults()), 'utf8');
+
+    const exitCode = await createDay(['node', 'create-day', '--session-cell', 'E2']);
+    expect(exitCode).toBe(1);
+    expect(mockNotionFromConfigFile).not.toHaveBeenCalled();
   });
 });
 
