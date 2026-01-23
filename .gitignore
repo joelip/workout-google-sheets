@@ -6,6 +6,8 @@ out
 dist
 *.tgz
 dry-run-output.json
+*-google-response-output.json
+google-response-output.json
 
 # code coverage
 coverage
