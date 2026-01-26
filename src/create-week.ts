@@ -1,9 +1,17 @@
 import { Command } from 'commander';
 import { GoogleSheetsAuth } from './auth';
 import { GoogleSheetsClient } from './sheets';
+import { GogSheetsClient } from './gog-sheets';
 import { NotionClient } from './notion';
 import { WorkoutParser } from './parser';
 import fs from 'fs/promises';
+
+// Common interface for both sheets clients
+interface SheetsClient {
+  findSheetByOwnerAndTitle(ownerEmail: string, title: string): Promise<{ id: string; name: string; url: string } | null>;
+  getCellRange(spreadsheetId: string, range: string): Promise<any[][]>;
+  getCellRangeResponseData(spreadsheetId: string, range: string): Promise<any>;
+}
 
 interface Config {
   notion: {
@@ -43,6 +51,7 @@ async function main() {
     .option('--cell-range <range>', 'Cell range to extract (e.g., B2:E5)')
     .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
     .option('--dump-google-response', 'Dump Google Sheets API response body to file instead of creating Notion page')
+    .option('--use-gog', 'Use gog CLI for Google Sheets API instead of googleapis library')
     .parse();
 
   const options = program.opts();
@@ -69,11 +78,17 @@ async function main() {
       process.exit(1);
     }
 
-    const auth = new GoogleSheetsAuth();
-    console.log('Authenticating with Google Sheets API...');
-    const oAuth2Client = await auth.authenticate();
+    let sheetsClient: SheetsClient;
 
-    const sheetsClient = new GoogleSheetsClient(oAuth2Client);
+    if (options.useGog) {
+      console.log('Using gog CLI for Google Sheets API...');
+      sheetsClient = new GogSheetsClient(sheetOwner);
+    } else {
+      const auth = new GoogleSheetsAuth();
+      console.log('Authenticating with Google Sheets API...');
+      const oAuth2Client = await auth.authenticate();
+      sheetsClient = new GoogleSheetsClient(oAuth2Client);
+    }
 
     console.log(`Searching for sheet "${sheetTitle}" owned by ${sheetOwner}...`);
     const sheetInfo = await sheetsClient.findSheetByOwnerAndTitle(sheetOwner, sheetTitle);
