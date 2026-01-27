@@ -17,22 +17,26 @@ export class GogSheetsClient {
     this.account = account;
   }
 
-  private getAccountFlag(): string[] {
-    return this.account ? ['--account', this.account] : [];
-  }
-
   async findSheetByOwnerAndTitle(ownerEmail: string, title: string): Promise<SheetInfo | null> {
     try {
-      // Search for spreadsheets with the given title owned by the specified email
-      const query = `name='${title}' and '${ownerEmail}' in owners and mimeType='application/vnd.google-apps.spreadsheet'`;
-      
-      const result = await $`gog drive search ${query} --max 1 --json ${this.getAccountFlag()}`.json();
+      // Search for spreadsheets with the given title
+      // gog drive search uses simple text search, then we filter results
+      const result = await $`gog drive search ${title} --max 20 --json --account ${ownerEmail} --no-input`.json();
       
       if (!result || !Array.isArray(result) || result.length === 0) {
         return null;
       }
 
-      const file = result[0];
+      // Find a spreadsheet with matching title
+      const file = result.find((f: any) => 
+        f.name === title && 
+        f.mimeType === 'application/vnd.google-apps.spreadsheet'
+      );
+
+      if (!file) {
+        return null;
+      }
+
       return {
         id: file.id,
         name: file.name,
@@ -45,7 +49,8 @@ export class GogSheetsClient {
 
   async getCellRange(spreadsheetId: string, range: string): Promise<any[][]> {
     try {
-      const result = await $`gog sheets get ${spreadsheetId} ${range} --json ${this.getAccountFlag()}`.json();
+      const accountFlags = this.account ? ['--account', this.account] : [];
+      const result = await $`gog sheets get ${spreadsheetId} ${range} --json --no-input ${accountFlags}`.json();
       
       // gog sheets get returns { values: [[...], [...]] } or similar structure
       if (result && result.values) {
@@ -65,7 +70,8 @@ export class GogSheetsClient {
 
   async getCellRangeResponseData(spreadsheetId: string, range: string): Promise<any> {
     try {
-      const result = await $`gog sheets get ${spreadsheetId} ${range} --json ${this.getAccountFlag()}`.json();
+      const accountFlags = this.account ? ['--account', this.account] : [];
+      const result = await $`gog sheets get ${spreadsheetId} ${range} --json --no-input ${accountFlags}`.json();
       return result;
     } catch (error) {
       throw new Error(`Error getting cell range response data ${range}: ${error}`);
@@ -74,7 +80,8 @@ export class GogSheetsClient {
 
   async getSheetMetadata(spreadsheetId: string): Promise<any> {
     try {
-      const result = await $`gog sheets metadata ${spreadsheetId} --json ${this.getAccountFlag()}`.json();
+      const accountFlags = this.account ? ['--account', this.account] : [];
+      const result = await $`gog sheets metadata ${spreadsheetId} --json --no-input ${accountFlags}`.json();
       return result;
     } catch (error) {
       throw new Error(`Error getting sheet metadata: ${error}`);
