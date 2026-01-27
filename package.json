@@ -3,10 +3,14 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "bin": {
+    "wgs": "./src/cli.ts"
+  },
   "scripts": {
-    "create-week": "bun run src/create-week.ts",
-    "create-day": "bun run src/create-day.ts",
-    "post-workout": "bun run src/post-workout.ts"
+    "wgs": "bun run src/cli.ts",
+    "create-week": "bun run src/cli.ts create-week",
+    "create-day": "bun run src/cli.ts create-day",
+    "post-workout": "bun run src/cli.ts post-workout"
   },
   "devDependencies": {
     "@types/bun": "latest"

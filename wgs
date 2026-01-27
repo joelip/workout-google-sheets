@@ -1,0 +1,2 @@
+#!/bin/bash
+bun run "$(dirname "$0")/src/cli.ts" "$@"
