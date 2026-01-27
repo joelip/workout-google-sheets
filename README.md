@@ -22,15 +22,40 @@ bun install
    - Share your parent page with the integration
    - Copy `config.example.json` to `config.json` and add your token and parent page ID
 
-4. Run the application:
+4. Run the CLI:
 ```bash
-bun run index.ts <owner-email> <sheet-title> <cell-range>
+./wgs --help
 ```
 
-Example:
+## CLI Usage
+
+The `wgs` CLI provides three commands for syncing workouts between Google Sheets and Notion.
+
+### Create Week
+Create a weekly workout plan in Notion from a range of cells in Google Sheets:
 ```bash
-bun run index.ts user@gmail.com "My Workout Sheet" "B2:E5"
+./wgs create-week --cell-range B2:E5
+./wgs create-week --sheet-owner user@gmail.com --sheet-title "My Workouts" --cell-range B2:E5
+./wgs create-week --dry-run  # Output parsed data without creating Notion page
 ```
+
+### Create Day
+Create a single daily workout entry in Notion from one Google Sheets cell:
+```bash
+./wgs create-day --session-cell B2
+./wgs create-day --sheet-owner user@gmail.com --sheet-title "My Workouts" --session-cell B2
+./wgs create-day --dry-run  # Output parsed data without creating Notion page
+```
+
+### Post Workout
+Post workout notes from a Notion page back to Google Sheets as cell comments:
+```bash
+./wgs post-workout --session-cell B2 --notion-page "1/27/2026"
+./wgs post-workout --test  # Output content without posting to sheets
+```
+
+### Global Options
+The `--sheet-owner` and `--sheet-title` options can be set as defaults in `config.json` to avoid repeating them.
 
 ## Features
 
@@ -63,10 +88,12 @@ Lunges: 3 sets of 10 each leg
 
 ## Files
 
+- `wgs` - CLI entry point (run from repo root)
+- `src/cli.ts` - CLI command definitions
+- `src/commands/` - Individual command implementations
 - `src/auth.ts` - Google OAuth authentication
 - `src/sheets.ts` - Google Sheets API client
 - `src/notion.ts` - Notion API client and page creation
 - `src/parser.ts` - Workout data parser with section detection
-- `index.ts` - Main application entry point
 - `config.json` - Notion configuration (create from example)
 - `credentials.json` - Google API credentials (create from example)
