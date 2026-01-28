@@ -20,8 +20,7 @@ interface CreateDayOptions {
   sheetTitle?: string;
   sessionCell?: string;
   dryRun?: boolean;
-  dumpGoogleResponse?: boolean;
-  text?: boolean;
+  output?: 'text' | 'json';
 }
 
 async function loadConfig(): Promise<Config> {
@@ -53,11 +52,6 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
       process.exit(1);
     }
 
-    if (options.dryRun && options.dumpGoogleResponse) {
-      console.error('Cannot use --dry-run and --dump-google-response together. Use at most one of these options.');
-      process.exit(1);
-    }
-
     const auth = new GoogleSheetsAuth();
     console.log('Authenticating with Google Sheets API...');
     const oAuth2Client = await auth.authenticate();
@@ -77,14 +71,6 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
 
     console.log(`Extracting data from cell: ${sessionCell}`);
 
-    if (options.dumpGoogleResponse) {
-      const responseData = await sheetsClient.getCellRangeResponseData(sheetInfo.id, sessionCell);
-      const output = JSON.stringify(responseData, null, 2);
-      await fs.writeFile('create-day-google-response-output.json', output, 'utf8');
-      console.log('Dump complete. Output written to create-day-google-response-output.json');
-      process.exit(0);
-    }
-
     const data = await sheetsClient.getCellRange(sheetInfo.id, sessionCell);
 
     if (!data || data.length === 0 || !data[0] || !data[0][0]) {
@@ -94,20 +80,25 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
 
     const cellContent = data[0][0];
 
-    if (options.text) {
-      console.log(cellContent);
-      process.exit(0);
-    }
-
     console.log('Parsing workout data...');
     const session = WorkoutParser.parseSingleCell(cellContent);
 
     console.log(`Found workout session with ${session.sections.length} sections`);
 
-    if (options.dryRun) {
+    // Handle --output option
+    if (options.output === 'text') {
+      console.log('\n--- Workout Content ---\n');
+      console.log(cellContent);
+      console.log('\n--- End Workout Content ---\n');
+    } else if (options.output === 'json') {
       const output = JSON.stringify({ rawContent: cellContent, parsed: session }, null, 2);
-      await fs.writeFile('dry-run-output.json', output, 'utf8');
-      console.log('Dry run complete. Output written to dry-run-output.json');
+      await fs.writeFile('workout-output.json', output, 'utf8');
+      console.log('JSON output written to workout-output.json');
+    }
+
+    // If dry-run, exit without creating Notion page
+    if (options.dryRun) {
+      console.log('Dry run complete. Skipping Notion page creation.');
       process.exit(0);
     }
 

@@ -27,9 +27,8 @@ program
   .option('--sheet-owner <email>', 'Google Sheets owner email')
   .option('--sheet-title <title>', 'Google Sheets document title')
   .option('--session-cell <cell>', 'Single cell reference (e.g., B2)')
-  .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
-  .option('--dump-google-response', 'Dump Google Sheets API response body to file')
-  .option('--text', 'Output raw workout text to stdout (no Notion page created)')
+  .option('--dry-run', 'Skip Notion page creation (use with --output to preview)')
+  .option('--output <format>', 'Output format: text (console) or json (file)')
   .action(async (options) => {
     const { runCreateDay } = await import('./commands/create-day.js');
     await runCreateDay(options);
