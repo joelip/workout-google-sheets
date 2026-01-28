@@ -21,6 +21,7 @@ interface CreateDayOptions {
   sessionCell?: string;
   dryRun?: boolean;
   dumpGoogleResponse?: boolean;
+  text?: boolean;
 }
 
 async function loadConfig(): Promise<Config> {
@@ -92,6 +93,12 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
     }
 
     const cellContent = data[0][0];
+
+    if (options.text) {
+      console.log(cellContent);
+      process.exit(0);
+    }
+
     console.log('Parsing workout data...');
     const session = WorkoutParser.parseSingleCell(cellContent);
 

@@ -29,6 +29,7 @@ program
   .option('--session-cell <cell>', 'Single cell reference (e.g., B2)')
   .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
   .option('--dump-google-response', 'Dump Google Sheets API response body to file')
+  .option('--text', 'Output raw workout text to stdout (no Notion page created)')
   .action(async (options) => {
     const { runCreateDay } = await import('./commands/create-day.js');
     await runCreateDay(options);
