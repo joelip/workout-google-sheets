@@ -121,7 +121,7 @@ export class RMResolver {
       const oneRM = this.findRepMax(undefined, contextLine);
       if (oneRM !== null) {
         const weight = this.calculateWeight(percentage, oneRM);
-        return `@ ${weight} ${this.defaultUnit}`;
+        return `${match} (${weight} ${this.defaultUnit})`;
       }
       return match; // Keep original if no match found
     });
@@ -132,7 +132,7 @@ export class RMResolver {
       const oneRM = this.findRepMax(exercise.trim());
       if (oneRM !== null) {
         const weight = this.calculateWeight(percentage, oneRM);
-        return `@ ${weight} ${this.defaultUnit}`;
+        return `${match} (${weight} ${this.defaultUnit})`;
       }
       return match;
     });
@@ -143,7 +143,7 @@ export class RMResolver {
       const oneRM = this.findRepMax(undefined, contextLine);
       if (oneRM !== null) {
         const weight = this.calculateWeight(percentage, oneRM);
-        return `${weight} ${this.defaultUnit}`;
+        return `${match} (${weight} ${this.defaultUnit})`;
       }
       return match;
     });
@@ -154,7 +154,7 @@ export class RMResolver {
       const oneRM = this.findRepMax(exercise.trim());
       if (oneRM !== null) {
         const weight = this.calculateWeight(percentage, oneRM);
-        return `${weight} ${this.defaultUnit}`;
+        return `${match} (${weight} ${this.defaultUnit})`;
       }
       return match;
     });
