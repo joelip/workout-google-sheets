@@ -123,14 +123,14 @@ C. Back Squat: 4 x 6 @ 80% 1RM, rest 2 min
 
 After (in Notion):
 ```
-C. Back Squat: 4 x 6 @ 252 lbs, rest 2 min
+C. Back Squat: 4 x 6 @ 80% 1RM (252 lbs), rest 2 min
 ```
 
 The resolver:
 1. Extracts the exercise name from the section header ("Back Squat")
 2. Matches it against your `repMaxes` config (finds "squat" with aliases)
 3. Calculates 80% of 315 lbs = 252 lbs
-4. Replaces the percentage reference with the calculated weight
+4. Appends the calculated weight in parentheses (preserving the original percentage)
 
 ### Matching Logic
 
