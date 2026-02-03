@@ -86,6 +86,59 @@ Squats: 3 sets of 15
 Lunges: 3 sets of 10 each leg
 ```
 
+## Rep Max (RM) Resolution
+
+The CLI can automatically resolve percentage-based weight references to actual weights based on your stored rep maxes.
+
+### Configuration
+
+Add a `repMaxes` array to your `config.json`:
+
+```json
+{
+  "repMaxes": [
+    { "exercise": "squat", "weight": 315, "aliases": ["back squat", "barbell squat"] },
+    { "exercise": "bench press", "weight": 225, "aliases": ["bench"] },
+    { "exercise": "deadlift", "weight": 405 }
+  ],
+  "defaultUnit": "lbs"
+}
+```
+
+### Supported Patterns
+
+The resolver recognizes these percentage patterns:
+
+- `@75% 1RM` / `@75%1RM` / `@ 75% 1RM` - Uses exercise from section context
+- `@80% squat` / `@75% bench press` - Explicit exercise name
+- `75% of 1RM` - Uses exercise from section context
+- `80% of squat` - Explicit exercise name
+
+### Example
+
+Before (in Google Sheets):
+```
+C. Back Squat: 4 x 6 @ 80% 1RM, rest 2 min
+```
+
+After (in Notion):
+```
+C. Back Squat: 4 x 6 @ 252 lbs, rest 2 min
+```
+
+The resolver:
+1. Extracts the exercise name from the section header ("Back Squat")
+2. Matches it against your `repMaxes` config (finds "squat" with aliases)
+3. Calculates 80% of 315 lbs = 252 lbs
+4. Replaces the percentage reference with the calculated weight
+
+### Matching Logic
+
+- Exact matches are preferred over partial matches
+- Longer matches are preferred (e.g., "clean grip rdl" > "rdl" > "dl")
+- Aliases are checked alongside canonical exercise names
+- If no match is found, the original text is preserved
+
 ## Files
 
 - `wgs` - CLI entry point (run from repo root)
@@ -95,5 +148,6 @@ Lunges: 3 sets of 10 each leg
 - `src/sheets.ts` - Google Sheets API client
 - `src/notion.ts` - Notion API client and page creation
 - `src/parser.ts` - Workout data parser with section detection
+- `src/rm-resolver.ts` - Rep max percentage resolution
 - `config.json` - Notion configuration (create from example)
 - `credentials.json` - Google API credentials (create from example)

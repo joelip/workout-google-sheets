@@ -81,7 +81,10 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
     const cellContent = data[0][0];
 
     console.log('Parsing workout data...');
-    const session = WorkoutParser.parseSingleCell(cellContent);
+    let session = WorkoutParser.parseSingleCell(cellContent);
+    
+    // Resolve RM (rep max) references to actual weights
+    session = await WorkoutParser.resolveRepMaxes(session);
 
     console.log(`Found workout session with ${session.sections.length} sections`);
 

@@ -1,4 +1,5 @@
-import type { WorkoutSession } from './notion';
+import type { WorkoutSession, WorkoutSectionData } from './notion';
+import { RMResolver, loadRMConfig } from './rm-resolver';
 
 export class WorkoutParser {
   private static readonly SECTION_HEADER_PATTERN = /^[A-Z]\d*\./;
@@ -151,5 +152,53 @@ export class WorkoutParser {
   static generatePageTitle(ownerEmail: string, sheetTitle: string): string {
     const date = new Date().toISOString().split('T')[0];
     return `${sheetTitle} - ${date}`;
+  }
+
+  /**
+   * Resolve RM (rep max) references in a parsed workout session.
+   * Replaces percentage-based references with actual weights based on config.
+   * 
+   * @param session - The parsed workout session
+   * @param configPath - Path to config file (default: 'config.json')
+   * @returns Session with RM references resolved to weights
+   */
+  static async resolveRepMaxes(session: WorkoutSession, configPath: string = 'config.json'): Promise<WorkoutSession> {
+    const rmConfig = await loadRMConfig(configPath);
+    
+    if (!rmConfig) {
+      // No RM config found, return session unchanged
+      return session;
+    }
+    
+    const resolver = new RMResolver(rmConfig);
+    
+    // Deep clone the session to avoid mutating the original
+    const resolvedSession: WorkoutSession = {
+      sessionNumber: session.sessionNumber,
+      sections: session.sections.map(section => ({
+        ...section,
+        header: section.header,
+        content: [...section.content],
+        youtubeLinks: [...section.youtubeLinks],
+      })),
+    };
+    
+    // Process each section
+    for (const section of resolvedSession.sections) {
+      // Use header as context for RM resolution (contains exercise name)
+      const contextLine = section.header || '';
+      
+      // Resolve RM references in the header
+      if (section.header) {
+        section.header = resolver.resolveLine(section.header, contextLine);
+      }
+      
+      // Resolve RM references in content lines
+      section.content = section.content.map(line => 
+        resolver.resolveLine(line, contextLine)
+      );
+    }
+    
+    return resolvedSession;
   }
 }

@@ -7,5 +7,11 @@
     "sheetOwner": "your-email@gmail.com",
     "sheetTitle": "Your Workout Sheet",
     "cellRange": "B2:E5"
-  }
+  },
+  "repMaxes": [
+    { "exercise": "squat", "weight": 315, "aliases": ["back squat", "barbell squat"] },
+    { "exercise": "bench press", "weight": 225, "aliases": ["bench", "barbell bench"] },
+    { "exercise": "deadlift", "weight": 405, "aliases": ["conventional deadlift", "dl"] }
+  ],
+  "defaultUnit": "lbs"
 }
