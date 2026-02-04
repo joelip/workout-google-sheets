@@ -92,7 +92,12 @@ export async function runCreateWeek(options: CreateWeekOptions): Promise<void> {
     const data = await sheetsClient.getCellRange(sheetInfo.id, cellRange);
 
     console.log('Parsing workout data...');
-    const sessions = WorkoutParser.parseWorkoutData(data);
+    let sessions = WorkoutParser.parseWorkoutData(data);
+    
+    // Resolve RM (rep max) references to actual weights for each session
+    sessions = await Promise.all(
+      sessions.map(session => WorkoutParser.resolveRepMaxes(session))
+    );
 
     console.log(`Found ${sessions.length} workout sessions:`);
     sessions.forEach((session) => {
