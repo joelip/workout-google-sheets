@@ -18,10 +18,18 @@ interface Config {
 interface CreateDayOptions {
   sheetOwner?: string;
   sheetTitle?: string;
+  day?: string;
   sessionCell?: string;
   dryRun?: boolean;
   output?: 'text' | 'json';
 }
+
+const DAY_TO_CELL: Record<number, string> = {
+  1: 'B2',
+  2: 'C2',
+  3: 'D2',
+  4: 'E2',
+};
 
 async function loadConfig(): Promise<Config> {
   const configContent = await fs.readFile('config.json', 'utf8');
@@ -41,12 +49,22 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
 
     const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
     const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
-    const sessionCell = options.sessionCell;
+    let sessionCell = options.sessionCell;
+
+    if (!sessionCell && options.day) {
+      const day = Number(options.day);
+      if (!Number.isInteger(day) || !DAY_TO_CELL[day]) {
+        console.error('Invalid --day value. Supported days are: 1, 2, 3, 4.');
+        process.exit(1);
+      }
+      sessionCell = DAY_TO_CELL[day];
+    }
 
     if (!sheetOwner || !sheetTitle || !sessionCell) {
       console.error('Missing required arguments. Please provide:\n');
       console.error('  --sheet-owner <email>     Google Sheets owner email');
       console.error('  --sheet-title <title>     Google Sheets document title');
+      console.error('  --day <day>               Workout day number (1-4 maps to B2-E2)');
       console.error('  --session-cell <cell>     Single cell reference (e.g., B2)\n');
       console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
       process.exit(1);

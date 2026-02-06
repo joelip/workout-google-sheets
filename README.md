@@ -42,10 +42,18 @@ Create a weekly workout plan in Notion from a range of cells in Google Sheets:
 ### Create Day
 Create a single daily workout entry in Notion from one Google Sheets cell:
 ```bash
+./wgs create-day --day 1
+./wgs create-day --day 4
 ./wgs create-day --session-cell B2
 ./wgs create-day --sheet-owner user@gmail.com --sheet-title "My Workouts" --session-cell B2
 ./wgs create-day --dry-run  # Output parsed data without creating Notion page
 ```
+
+Day mapping for `--day`:
+- `1` -> `B2`
+- `2` -> `C2`
+- `3` -> `D2`
+- `4` -> `E2`
 
 ### Post Workout
 Post workout notes from a Notion page back to Google Sheets as cell comments:

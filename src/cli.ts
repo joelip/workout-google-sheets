@@ -26,6 +26,7 @@ program
   .description('Create a daily workout entry in Notion from a single Google Sheets cell')
   .option('--sheet-owner <email>', 'Google Sheets owner email')
   .option('--sheet-title <title>', 'Google Sheets document title')
+  .option('--day <day>', 'Workout day number (1-4 maps to B2-E2)')
   .option('--session-cell <cell>', 'Single cell reference (e.g., B2)')
   .option('--dry-run', 'Skip Notion page creation (use with --output to preview)')
   .option('--output <format>', 'Output format: text (console) or json (file)')
