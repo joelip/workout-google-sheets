@@ -48,4 +48,15 @@ program
     await runPostWorkout(options);
   });
 
+program
+  .command('fetch-comments')
+  .description('Fetch Google Drive comments from the configured spreadsheet')
+  .option('--sheet-owner <email>', 'Google Sheets owner email')
+  .option('--sheet-title <title>', 'Google Sheets document title')
+  .option('--since <window>', 'Time window: <n>h, <n>d, <n>w (default: 24h)', '24h')
+  .action(async (options) => {
+    const { runFetchComments } = await import('./commands/fetch-comments.js');
+    await runFetchComments(options);
+  });
+
 program.parse();

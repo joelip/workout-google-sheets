@@ -10,7 +10,8 @@
     "wgs": "bun run src/cli.ts",
     "create-week": "bun run src/cli.ts create-week",
     "create-day": "bun run src/cli.ts create-day",
-    "post-workout": "bun run src/cli.ts post-workout"
+    "post-workout": "bun run src/cli.ts post-workout",
+    "fetch-comments": "bun run src/cli.ts fetch-comments"
   },
   "devDependencies": {
     "@types/bun": "latest"

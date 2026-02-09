@@ -3,7 +3,11 @@ import { OAuth2Client } from 'google-auth-library';
 import fs from 'fs/promises';
 import path from 'path';
 
-const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https://www.googleapis.com/auth/drive.metadata.readonly'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/spreadsheets.readonly',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/drive',
+];
 const TOKEN_PATH = 'token.json';
 const CREDENTIALS_PATH = 'credentials.json';
 

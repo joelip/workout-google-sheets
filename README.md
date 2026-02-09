@@ -29,7 +29,7 @@ bun install
 
 ## CLI Usage
 
-The `wgs` CLI provides three commands for syncing workouts between Google Sheets and Notion.
+The `wgs` CLI provides commands for syncing workouts between Google Sheets and Notion.
 
 ### Create Week
 Create a weekly workout plan in Notion from a range of cells in Google Sheets:
@@ -60,6 +60,15 @@ Post workout notes from a Notion page back to Google Sheets as cell comments:
 ```bash
 ./wgs post-workout --session-cell B2 --notion-page "1/27/2026"
 ./wgs post-workout --test  # Output content without posting to sheets
+```
+
+### Fetch Comments
+Fetch Google Drive comments from the target spreadsheet (filtered to sheet-owner comments):
+```bash
+./wgs fetch-comments
+./wgs fetch-comments --since 24h
+./wgs fetch-comments --since 7d
+./wgs fetch-comments --since 2w
 ```
 
 ### Global Options
