@@ -29,7 +29,19 @@ bun install
 
 ## CLI Usage
 
-The `wgs` CLI provides three commands for syncing workouts between Google Sheets and Notion.
+The `wgs` CLI provides commands for syncing workouts between Google Sheets and Notion.
+
+### Check For New Week
+Check whether a new week appears to have been added in the sheet:
+```bash
+./wgs check-for-new-week
+./wgs check-for-new-week --json
+./wgs check-for-new-week --latest-range B2:E2 --previous-range B3:E3
+```
+
+Detection logic:
+- Latest range (default `B2:E2`) must contain at least one filled cell
+- Previous range (default `B3:E3`) must have fill + note in every cell
 
 ### Create Week
 Create a weekly workout plan in Notion from a range of cells in Google Sheets:

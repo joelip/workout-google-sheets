@@ -7,6 +7,56 @@ export interface SheetInfo {
   url: string;
 }
 
+export interface SheetCellData {
+  value: string;
+  note: string;
+  hasFill: boolean;
+}
+
+function isWhiteColor(color?: sheets_v4.Schema$Color | null): boolean {
+  if (!color) {
+    return false;
+  }
+
+  const red = color.red ?? 0;
+  const green = color.green ?? 0;
+  const blue = color.blue ?? 0;
+
+  return red >= 0.98 && green >= 0.98 && blue >= 0.98;
+}
+
+function hasNonWhiteStyleFill(style?: sheets_v4.Schema$ColorStyle | null): boolean {
+  if (!style) {
+    return false;
+  }
+
+  if (style.themeColor && !style.rgbColor) {
+    return true;
+  }
+
+  return !isWhiteColor(style.rgbColor);
+}
+
+function detectCellFill(cell: sheets_v4.Schema$CellData): boolean {
+  if (hasNonWhiteStyleFill(cell.userEnteredFormat?.backgroundColorStyle)) {
+    return true;
+  }
+
+  if (cell.userEnteredFormat?.backgroundColor && !isWhiteColor(cell.userEnteredFormat.backgroundColor)) {
+    return true;
+  }
+
+  if (hasNonWhiteStyleFill(cell.effectiveFormat?.backgroundColorStyle)) {
+    return true;
+  }
+
+  if (cell.effectiveFormat?.backgroundColor && !isWhiteColor(cell.effectiveFormat.backgroundColor)) {
+    return true;
+  }
+
+  return false;
+}
+
 export class GoogleSheetsClient {
   private sheets: sheets_v4.Sheets;
   private drive: drive_v3.Drive;
@@ -76,6 +126,28 @@ export class GoogleSheetsClient {
       return response.data;
     } catch (error) {
       throw new Error(`Error getting sheet metadata: ${error}`);
+    }
+  }
+
+  async getCellDataRange(spreadsheetId: string, range: string): Promise<SheetCellData[][]> {
+    try {
+      const response = await this.sheets.spreadsheets.get({
+        spreadsheetId,
+        ranges: [range],
+        includeGridData: true,
+        fields: 'sheets(data(rowData(values(formattedValue,note,userEnteredFormat(backgroundColor,backgroundColorStyle),effectiveFormat(backgroundColor,backgroundColorStyle)))))',
+      });
+
+      const rowData = response.data.sheets?.[0]?.data?.[0]?.rowData || [];
+      return rowData.map((row) =>
+        (row.values || []).map((cell) => ({
+          value: cell.formattedValue || '',
+          note: cell.note || '',
+          hasFill: detectCellFill(cell),
+        }))
+      );
+    } catch (error) {
+      throw new Error(`Error getting cell data range ${range}: ${error}`);
     }
   }
 }

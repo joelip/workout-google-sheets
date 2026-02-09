@@ -22,6 +22,19 @@ program
   });
 
 program
+  .command('check-for-new-week')
+  .description('Check if a new week appears to have been added in Google Sheets')
+  .option('--sheet-owner <email>', 'Google Sheets owner email')
+  .option('--sheet-title <title>', 'Google Sheets document title')
+  .option('--latest-range <range>', 'Range for latest week check (default: B2:E2)')
+  .option('--previous-range <range>', 'Range for previous week validation (default: B3:E3)')
+  .option('--json', 'Output machine-readable JSON')
+  .action(async (options) => {
+    const { runCheckForNewWeek } = await import('./commands/check-for-new-week.js');
+    await runCheckForNewWeek(options);
+  });
+
+program
   .command('create-day')
   .description('Create a daily workout entry in Notion from a single Google Sheets cell')
   .option('--sheet-owner <email>', 'Google Sheets owner email')
