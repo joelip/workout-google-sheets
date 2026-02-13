@@ -4,6 +4,10 @@ import { NotionClient } from '../notion';
 import fs from 'fs/promises';
 import { Client } from '@notionhq/client';
 import { google } from 'googleapis';
+import {
+  buildGoogleSheetsCommentChunks,
+  type WorkoutContent,
+} from './post-workout-comment-format';
 
 interface Config {
   notion: {
@@ -14,12 +18,6 @@ interface Config {
     sheetOwner?: string;
     sheetTitle?: string;
   };
-}
-
-interface WorkoutContent {
-  overallNotes: string;
-  lowerBody: string;
-  upperBody: string;
 }
 
 interface PostWorkoutOptions {
@@ -367,16 +365,28 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
     const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
 
     if (options.test) {
-      console.log('\n=== TEST MODE OUTPUT ===');
-      if (workoutContent.overallNotes) {
-        console.log(`\n${workoutContent.overallNotes}`);
+      const chunks = buildGoogleSheetsCommentChunks(workoutContent);
+
+      console.log('\n=== TEST MODE OUTPUT (Google Sheets Mobile Chunks) ===');
+
+      if (chunks.length === 0) {
+        console.log('\nNo workout content found.');
+        console.log('\n=== End Test Output ===');
+        return;
       }
-      if (workoutContent.lowerBody) {
-        console.log(`\n${workoutContent.lowerBody}`);
+
+      for (const chunk of chunks) {
+        const overLimitLabel = chunk.overSafeLimit
+          ? ' [Over 500 chars: single movement/sentence too long to split safely]'
+          : '';
+
+        console.log(`\n[Chunk ${chunk.chunkNumber}/${chunk.chunkCount}] ${chunk.label} (${chunk.charCount} chars)${overLimitLabel}`);
+        console.log(`Paste into ${cellId} comment.`);
+        console.log('--- START COPY ---');
+        console.log(chunk.content);
+        console.log('--- END COPY ---');
       }
-      if (workoutContent.upperBody) {
-        console.log(`\n${workoutContent.upperBody}`);
-      }
+
       console.log('\n=== End Test Output ===');
       return;
     }
