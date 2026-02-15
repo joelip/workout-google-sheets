@@ -8,12 +8,16 @@ export interface WorkoutTextSections {
 
 export const SHEETS_CHUNK_CHAR_LIMIT = 2048;
 const UPPER_BODY_HEADER_PATTERN = /^###\s*upper body:\s*$/i;
+const PLUS_ONLY_BULLET_LINE_PATTERN = /^\s*-\s*\+\s*$/;
+const PLUS_ONLY_LINE_PATTERN = /^\s*\+\s*$/;
 
 export function renderWorkoutTextOutput(sections: WorkoutTextSections): string {
-  return [sections.overallNotes, sections.lowerBody, sections.upperBody]
+  const combined = [sections.overallNotes, sections.lowerBody, sections.upperBody]
     .filter((section): section is string => Boolean(section && section.trim().length > 0))
     .join('\n\n')
     .trim();
+
+  return removePlusOnlyBulletLines(combined);
 }
 
 export function splitWorkoutTextForSheets(
@@ -79,6 +83,14 @@ function splitChunkByPreferredBoundaries(chunk: string, maxChars: number): strin
 
   chunks.push(remaining);
   return chunks;
+}
+
+function removePlusOnlyBulletLines(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => !PLUS_ONLY_BULLET_LINE_PATTERN.test(line) && !PLUS_ONLY_LINE_PATTERN.test(line))
+    .join('\n')
+    .trim();
 }
 
 function findMinorSectionSplitIndex(text: string, maxChars: number): number {

@@ -409,13 +409,7 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
 
     console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
 
-    const combinedComment = [
-      workoutContent.overallNotes,
-      workoutContent.lowerBody,
-      workoutContent.upperBody,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    const combinedComment = renderWorkoutTextOutput(workoutContent);
 
     console.log(`Adding workout comment to cell ${cellId}...`);
     await sheetsClient.addCommentToCell(sheetInfo.id, cellId, combinedComment);

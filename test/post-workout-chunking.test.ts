@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'fs';
 import {
   SHEETS_CHUNK_CHAR_LIMIT,
+  renderWorkoutTextOutput,
   splitWorkoutTextForSheets,
 } from '../src/post-workout-chunking';
 
@@ -35,5 +36,18 @@ describe('post-workout sheets chunking', () => {
     expect(chunks).toHaveLength(2);
     expect(chunks[1].startsWith('### Upper Body:')).toBe(true);
     expect(chunks.every((chunk) => chunk.length <= 3000)).toBe(true);
+  });
+
+  test('removes plus-only bullet artifacts from rendered text', () => {
+    const output = renderWorkoutTextOutput({
+      overallNotes: '### Overall Notes:\n- Keep moving',
+      lowerBody: '### Lower Body:\n- +\nA. Squat',
+      upperBody: '### Upper Body:\n+\nB. Pull-up',
+    });
+
+    expect(output.includes('\n- +\n')).toBe(false);
+    expect(output.includes('\n+\n')).toBe(false);
+    expect(output.includes('A. Squat')).toBe(true);
+    expect(output.includes('B. Pull-up')).toBe(true);
   });
 });
