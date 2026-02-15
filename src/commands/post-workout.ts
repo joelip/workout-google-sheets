@@ -369,7 +369,6 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
     const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
 
     if (options.text) {
-      console.log('\n=== TEXT MODE OUTPUT ===');
       if (workoutContent.overallNotes) {
         console.log(`\n${workoutContent.overallNotes}`);
       }
@@ -379,7 +378,6 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
       if (workoutContent.upperBody) {
         console.log(`\n${workoutContent.upperBody}`);
       }
-      console.log('\n=== End Text Output ===');
       return;
     }
 
