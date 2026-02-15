@@ -27,7 +27,7 @@ interface PostWorkoutOptions {
   notionPage?: string;
   sheetOwner?: string;
   sheetTitle?: string;
-  test?: boolean;
+  text?: boolean;
 }
 
 async function loadConfig(): Promise<Config> {
@@ -327,6 +327,7 @@ class ExtendedGoogleSheetsClient extends GoogleSheetsClient {
 
 export async function runPostWorkout(options: PostWorkoutOptions): Promise<void> {
   const cellId = options.sessionCell;
+  const requiresSessionCell = !options.text;
 
   try {
     const config = await loadConfig();
@@ -335,13 +336,14 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
     const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
     const notionPageTitle = options.notionPage;
 
-    if (!sheetOwner || !sheetTitle || !notionPageTitle || !cellId) {
+    if (!sheetOwner || !sheetTitle || !notionPageTitle || (requiresSessionCell && !cellId)) {
       console.error('Missing required arguments. Please provide:\n');
       console.error('  --session-cell <cell>     Cell reference (e.g., B2)');
       console.error('  --notion-page <title>     Title of nested Notion page');
       console.error('  --sheet-owner <email>     Google Sheets owner email');
       console.error('  --sheet-title <title>     Google Sheets document title\n');
       console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
+      console.error('Note: --session-cell is optional when --text is provided');
       process.exit(1);
     }
 
@@ -366,8 +368,8 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
     console.log('Splitting content by workout sections...');
     const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
 
-    if (options.test) {
-      console.log('\n=== TEST MODE OUTPUT ===');
+    if (options.text) {
+      console.log('\n=== TEXT MODE OUTPUT ===');
       if (workoutContent.overallNotes) {
         console.log(`\n${workoutContent.overallNotes}`);
       }
@@ -377,7 +379,7 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
       if (workoutContent.upperBody) {
         console.log(`\n${workoutContent.upperBody}`);
       }
-      console.log('\n=== End Test Output ===');
+      console.log('\n=== End Text Output ===');
       return;
     }
 

@@ -333,13 +333,14 @@ async function main() {
     .description('Post workout content from Notion page to Google Sheets as comments')
     .option('--session-cell <cell>', 'Cell reference (e.g., B2)')
     .option('--notion-page <title>', 'Title of the nested Notion page')
-    .option('--test', 'Test mode - output content without posting to sheets')
+    .option('--text', 'Text mode - output content without posting to sheets')
     .option('--sheet-owner <email>', 'Google Sheets owner email')
     .option('--sheet-title <title>', 'Google Sheets document title')
     .parse();
 
   const options = program.opts();
   const cellId = options.sessionCell;
+  const requiresSessionCell = !options.text;
 
   try {
     const config = await loadConfig();
@@ -348,13 +349,14 @@ async function main() {
     const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
     const notionPageTitle = options.notionPage;
 
-    if (!sheetOwner || !sheetTitle || !notionPageTitle || !cellId) {
+    if (!sheetOwner || !sheetTitle || !notionPageTitle || (requiresSessionCell && !cellId)) {
       console.error('Missing required arguments. Please provide:\n');
       console.error('  --session-cell <cell>     Cell reference (e.g., B2)');
       console.error('  --notion-page <title>     Title of nested Notion page');
       console.error('  --sheet-owner <email>     Google Sheets owner email');
       console.error('  --sheet-title <title>     Google Sheets document title\n');
       console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
+      console.error('Note: --session-cell is optional when --text is provided');
       process.exit(1);
     }
 
@@ -379,8 +381,8 @@ async function main() {
     console.log('Splitting content by workout sections...');
     const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
 
-    if (options.test) {
-      console.log('\n=== TEST MODE OUTPUT ===');
+    if (options.text) {
+      console.log('\n=== TEXT MODE OUTPUT ===');
       if (workoutContent.overallNotes) {
         console.log(`\n${workoutContent.overallNotes}`);
       }
@@ -390,7 +392,7 @@ async function main() {
       if (workoutContent.upperBody) {
         console.log(`\n${workoutContent.upperBody}`);
       }
-      console.log('\n=== End Test Output ===');
+      console.log('\n=== End Text Output ===');
       return;
     }
 

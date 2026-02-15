@@ -55,7 +55,7 @@ program
   .option('--notion-page <title>', 'Title of the nested Notion page')
   .option('--sheet-owner <email>', 'Google Sheets owner email')
   .option('--sheet-title <title>', 'Google Sheets document title')
-  .option('--test', 'Test mode - output content without posting to sheets')
+  .option('--text', 'Text mode - output content without posting to sheets')
   .action(async (options) => {
     const { runPostWorkout } = await import('./commands/post-workout.js');
     await runPostWorkout(options);
