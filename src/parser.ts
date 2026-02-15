@@ -5,7 +5,7 @@ export class WorkoutParser {
   private static readonly SECTION_HEADER_PATTERN = /^[A-Z]\d*\./;
   private static readonly UPPER_LOWER_PATTERN = /^(upper body|lower body):$/i;
   private static readonly YOUTUBE_URL_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
-  private static readonly PLYO_PROGRESSION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression):?$/i;
+  private static readonly MINOR_SECTION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression|conditioning):?$/i;
   private static readonly ASTERISK_PREFIX_PATTERN = /^\*{2,}/;
 
   static parseWorkoutData(cellData: any[][]): WorkoutSession[] {
@@ -115,8 +115,8 @@ export class WorkoutParser {
     return this.UPPER_LOWER_PATTERN.test(line.trim());
   }
 
-  private static isPlyoProgression(line: string): boolean {
-    return this.PLYO_PROGRESSION_PATTERN.test(line);
+  private static isMinorSection(line: string): boolean {
+    return this.MINOR_SECTION_PATTERN.test(line);
   }
 
   private static isAsteriskLine(line: string): boolean {
@@ -124,7 +124,7 @@ export class WorkoutParser {
   }
 
   private static isStandaloneParagraph(line: string): boolean {
-    return this.isPlyoProgression(line) || this.isAsteriskLine(line);
+    return this.isMinorSection(line) || this.isAsteriskLine(line);
   }
 
   private static extractYouTubeLinks(text: string): string[] {
@@ -157,21 +157,21 @@ export class WorkoutParser {
   /**
    * Resolve RM (rep max) references in a parsed workout session.
    * Replaces percentage-based references with actual weights based on config.
-   * 
+   *
    * @param session - The parsed workout session
    * @param configPath - Path to config file (default: 'config.json')
    * @returns Session with RM references resolved to weights
    */
   static async resolveRepMaxes(session: WorkoutSession, configPath: string = 'config.json'): Promise<WorkoutSession> {
     const rmConfig = await loadRMConfig(configPath);
-    
+
     if (!rmConfig) {
       // No RM config found, return session unchanged
       return session;
     }
-    
+
     const resolver = new RMResolver(rmConfig);
-    
+
     // Deep clone the session to avoid mutating the original
     const resolvedSession: WorkoutSession = {
       sessionNumber: session.sessionNumber,
@@ -182,23 +182,23 @@ export class WorkoutParser {
         youtubeLinks: [...section.youtubeLinks],
       })),
     };
-    
+
     // Process each section
     for (const section of resolvedSession.sections) {
       // Use header as context for RM resolution (contains exercise name)
       const contextLine = section.header || '';
-      
+
       // Resolve RM references in the header
       if (section.header) {
         section.header = resolver.resolveLine(section.header, contextLine);
       }
-      
+
       // Resolve RM references in content lines
-      section.content = section.content.map(line => 
+      section.content = section.content.map(line =>
         resolver.resolveLine(line, contextLine)
       );
     }
-    
+
     return resolvedSession;
   }
 }
