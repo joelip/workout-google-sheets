@@ -1,6 +1,10 @@
 import { GoogleSheetsAuth } from '../auth';
 import { GoogleSheetsClient } from '../sheets';
 import { NotionClient } from '../notion';
+import {
+  renderWorkoutTextOutput,
+  splitWorkoutTextForSheets,
+} from '../post-workout-chunking';
 import fs from 'fs/promises';
 import { Client } from '@notionhq/client';
 import { google } from 'googleapis';
@@ -28,6 +32,7 @@ interface PostWorkoutOptions {
   sheetOwner?: string;
   sheetTitle?: string;
   text?: boolean;
+  sheetsChunked?: boolean;
 }
 
 async function loadConfig(): Promise<Config> {
@@ -326,8 +331,9 @@ class ExtendedGoogleSheetsClient extends GoogleSheetsClient {
 }
 
 export async function runPostWorkout(options: PostWorkoutOptions): Promise<void> {
+  const textMode = Boolean(options.text || options.sheetsChunked);
   const cellId = options.sessionCell;
-  const requiresSessionCell = !options.text;
+  const requiresSessionCell = !textMode;
 
   try {
     const config = await loadConfig();
@@ -343,7 +349,7 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
       console.error('  --sheet-owner <email>     Google Sheets owner email');
       console.error('  --sheet-title <title>     Google Sheets document title\n');
       console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
-      console.error('Note: --session-cell is optional when --text is provided');
+      console.error('Note: --session-cell is optional when --text or --sheets-chunked is provided');
       process.exit(1);
     }
 
@@ -368,16 +374,22 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
     console.log('Splitting content by workout sections...');
     const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
 
-    if (options.text) {
-      if (workoutContent.overallNotes) {
-        console.log(`\n${workoutContent.overallNotes}`);
+    if (textMode) {
+      const textOutput = renderWorkoutTextOutput(workoutContent);
+
+      if (options.sheetsChunked) {
+        const chunks = splitWorkoutTextForSheets(textOutput);
+        chunks.forEach((chunk, index) => {
+          if (index > 0) {
+            console.log('');
+          }
+          console.log(`--- Chunk ${index + 1}/${chunks.length} (${chunk.length} chars) ---`);
+          console.log(chunk);
+        });
+      } else if (textOutput) {
+        console.log(`\n${textOutput}`);
       }
-      if (workoutContent.lowerBody) {
-        console.log(`\n${workoutContent.lowerBody}`);
-      }
-      if (workoutContent.upperBody) {
-        console.log(`\n${workoutContent.upperBody}`);
-      }
+
       return;
     }
 

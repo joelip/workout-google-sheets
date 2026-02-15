@@ -56,6 +56,7 @@ program
   .option('--sheet-owner <email>', 'Google Sheets owner email')
   .option('--sheet-title <title>', 'Google Sheets document title')
   .option('--text', 'Text mode - output content without posting to sheets')
+  .option('--sheets-chunked', 'Split text output into Sheets-safe chunks (<= 2048 chars)')
   .action(async (options) => {
     const { runPostWorkout } = await import('./commands/post-workout.js');
     await runPostWorkout(options);
