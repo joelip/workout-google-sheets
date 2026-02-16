@@ -71,7 +71,8 @@ Day mapping for `--day`:
 Post workout notes from a Notion page back to Google Sheets as cell comments:
 ```bash
 ./wgs post-workout --session-cell B2 --notion-page "1/27/2026"
-./wgs post-workout --test  # Output content without posting to sheets
+./wgs post-workout --notion-page "1/27/2026" --text
+./wgs post-workout --notion-page "1/27/2026" --text --sheets-chunked  # Split output into <= 2048-char chunks
 ```
 
 ### Global Options

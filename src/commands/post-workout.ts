@@ -1,6 +1,10 @@
 import { GoogleSheetsAuth } from '../auth';
 import { GoogleSheetsClient } from '../sheets';
 import { NotionClient } from '../notion';
+import {
+  renderWorkoutTextOutput,
+  splitWorkoutTextForSheets,
+} from '../post-workout-chunking';
 import fs from 'fs/promises';
 import { Client } from '@notionhq/client';
 import { google } from 'googleapis';
@@ -27,7 +31,8 @@ interface PostWorkoutOptions {
   notionPage?: string;
   sheetOwner?: string;
   sheetTitle?: string;
-  test?: boolean;
+  text?: boolean;
+  sheetsChunked?: boolean;
 }
 
 async function loadConfig(): Promise<Config> {
@@ -326,7 +331,9 @@ class ExtendedGoogleSheetsClient extends GoogleSheetsClient {
 }
 
 export async function runPostWorkout(options: PostWorkoutOptions): Promise<void> {
+  const textMode = Boolean(options.text || options.sheetsChunked);
   const cellId = options.sessionCell;
+  const requiresSessionCell = !textMode;
 
   try {
     const config = await loadConfig();
@@ -335,13 +342,16 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
     const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
     const notionPageTitle = options.notionPage;
 
-    if (!sheetOwner || !sheetTitle || !notionPageTitle || !cellId) {
+    if (!sheetOwner || !sheetTitle || !notionPageTitle || (requiresSessionCell && !cellId)) {
       console.error('Missing required arguments. Please provide:\n');
-      console.error('  --session-cell <cell>     Cell reference (e.g., B2)');
+      if (requiresSessionCell) {
+        console.error('  --session-cell <cell>     Cell reference (e.g., B2)');
+      }
       console.error('  --notion-page <title>     Title of nested Notion page');
       console.error('  --sheet-owner <email>     Google Sheets owner email');
       console.error('  --sheet-title <title>     Google Sheets document title\n');
       console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
+      console.error('Note: --session-cell is optional when --text or --sheets-chunked is provided');
       process.exit(1);
     }
 
@@ -366,18 +376,22 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
     console.log('Splitting content by workout sections...');
     const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
 
-    if (options.test) {
-      console.log('\n=== TEST MODE OUTPUT ===');
-      if (workoutContent.overallNotes) {
-        console.log(`\n${workoutContent.overallNotes}`);
+    if (textMode) {
+      const textOutput = renderWorkoutTextOutput(workoutContent);
+
+      if (options.sheetsChunked) {
+        const chunks = splitWorkoutTextForSheets(textOutput);
+        chunks.forEach((chunk, index) => {
+          if (index > 0) {
+            console.log('');
+          }
+          console.log(`--- Chunk ${index + 1}/${chunks.length} (${chunk.length} chars) ---`);
+          console.log(chunk);
+        });
+      } else if (textOutput) {
+        console.log(`\n${textOutput}`);
       }
-      if (workoutContent.lowerBody) {
-        console.log(`\n${workoutContent.lowerBody}`);
-      }
-      if (workoutContent.upperBody) {
-        console.log(`\n${workoutContent.upperBody}`);
-      }
-      console.log('\n=== End Test Output ===');
+
       return;
     }
 
@@ -397,13 +411,7 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
 
     console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
 
-    const combinedComment = [
-      workoutContent.overallNotes,
-      workoutContent.lowerBody,
-      workoutContent.upperBody,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    const combinedComment = renderWorkoutTextOutput(workoutContent);
 
     console.log(`Adding workout comment to cell ${cellId}...`);
     await sheetsClient.addCommentToCell(sheetInfo.id, cellId, combinedComment);
