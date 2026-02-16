@@ -6,6 +6,7 @@ import { Client } from '@notionhq/client';
 import { google } from 'googleapis';
 import {
   buildGoogleSheetsCommentChunks,
+  GOOGLE_SHEETS_COMMENT_SAFE_CHARS,
   type WorkoutContent,
 } from './post-workout-comment-format';
 
@@ -377,7 +378,7 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
 
       for (const chunk of chunks) {
         const overLimitLabel = chunk.overSafeLimit
-          ? ' [Over 500 chars: single movement/sentence too long to split safely]'
+          ? ` [Over ${GOOGLE_SHEETS_COMMENT_SAFE_CHARS} chars: single movement/sentence too long to split safely]`
           : '';
 
         console.log(`\n[Chunk ${chunk.chunkNumber}/${chunk.chunkCount}] ${chunk.label} (${chunk.charCount} chars)${overLimitLabel}`);

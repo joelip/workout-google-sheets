@@ -31,7 +31,7 @@ interface SectionBlock {
 const MOVEMENT_HEADER_PATTERN = /^\s*(?:#{1,6}\s*)?[A-Z]\d*\.\s*/;
 const HEADING_PATTERN = /^\s*#{1,6}\s+/;
 
-export const GOOGLE_SHEETS_COMMENT_SAFE_CHARS = 500;
+export const GOOGLE_SHEETS_COMMENT_SAFE_CHARS = 1800;
 
 function isMovementHeader(line: string): boolean {
   return MOVEMENT_HEADER_PATTERN.test(line.trim());
@@ -195,11 +195,12 @@ function chunkSection(sectionName: string, sectionContent: string, maxChars: num
   let currentChunkBlocks: string[] = [];
 
   for (const block of preparedBlocks) {
-    const withCandidate = renderSectionChunk(header, [...currentChunkBlocks, block.text]);
+    const currentChunkHeader = chunkContents.length === 0 ? header : '';
+    const withCandidate = renderSectionChunk(currentChunkHeader, [...currentChunkBlocks, block.text]);
     if (withCandidate.length <= maxChars || currentChunkBlocks.length === 0) {
       currentChunkBlocks.push(block.text);
 
-      const singleBlockChunk = renderSectionChunk(header, currentChunkBlocks);
+      const singleBlockChunk = renderSectionChunk(currentChunkHeader, currentChunkBlocks);
       if (singleBlockChunk.length > maxChars) {
         chunkContents.push(singleBlockChunk);
         currentChunkBlocks = [];
@@ -207,10 +208,11 @@ function chunkSection(sectionName: string, sectionContent: string, maxChars: num
       continue;
     }
 
-    chunkContents.push(renderSectionChunk(header, currentChunkBlocks));
+    chunkContents.push(renderSectionChunk(currentChunkHeader, currentChunkBlocks));
     currentChunkBlocks = [block.text];
 
-    const singleBlockChunk = renderSectionChunk(header, currentChunkBlocks);
+    const nextChunkHeader = chunkContents.length === 0 ? header : '';
+    const singleBlockChunk = renderSectionChunk(nextChunkHeader, currentChunkBlocks);
     if (singleBlockChunk.length > maxChars) {
       chunkContents.push(singleBlockChunk);
       currentChunkBlocks = [];
@@ -218,7 +220,8 @@ function chunkSection(sectionName: string, sectionContent: string, maxChars: num
   }
 
   if (currentChunkBlocks.length > 0) {
-    chunkContents.push(renderSectionChunk(header, currentChunkBlocks));
+    const finalChunkHeader = chunkContents.length === 0 ? header : '';
+    chunkContents.push(renderSectionChunk(finalChunkHeader, currentChunkBlocks));
   }
 
   if (chunkContents.length === 0) {
