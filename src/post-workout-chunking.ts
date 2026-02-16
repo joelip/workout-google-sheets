@@ -1,4 +1,4 @@
-import { MINOR_SECTION_PATTERN } from './parser';
+import { removePlusOnlyMarkerLines } from './text-cleaning';
 
 export interface WorkoutTextSections {
   overallNotes?: string;
@@ -8,35 +8,32 @@ export interface WorkoutTextSections {
 
 export const SHEETS_CHUNK_CHAR_LIMIT = 2048;
 const UPPER_BODY_HEADER_PATTERN = /^###\s*upper body:\s*$/i;
-const PLUS_ONLY_BULLET_LINE_PATTERN = /^\s*-\s*\+\s*$/;
-const PLUS_ONLY_LINE_PATTERN = /^\s*\+\s*$/;
+const MINOR_SECTION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression|conditioning):?$/i;
 
 export function renderWorkoutTextOutput(sections: WorkoutTextSections): string {
   const combined = [sections.overallNotes, sections.lowerBody, sections.upperBody]
     .filter((section): section is string => Boolean(section && section.trim().length > 0))
-    .join('\n\n')
-    .trim();
+    .join('\n\n');
 
-  return removePlusOnlyBulletLines(combined);
+  return removePlusOnlyMarkerLines(combined).trim();
 }
 
 export function splitWorkoutTextForSheets(
   text: string,
   maxChars: number = SHEETS_CHUNK_CHAR_LIMIT
 ): string[] {
-  const normalizedText = text.trim();
-  if (!normalizedText) {
+  if (!text.trim()) {
     return [];
   }
 
-  const upperBodyStart = findUpperBodyStartIndex(normalizedText);
+  const upperBodyStart = findUpperBodyStartIndex(text);
   const baseChunks =
     upperBodyStart > 0
       ? [
-          normalizedText.slice(0, upperBodyStart).trimEnd(),
-          normalizedText.slice(upperBodyStart).trimStart(),
+          text.slice(0, upperBodyStart),
+          text.slice(upperBodyStart),
         ].filter((chunk) => chunk.length > 0)
-      : [normalizedText];
+      : [text];
 
   return baseChunks.flatMap((chunk) => splitChunkByPreferredBoundaries(chunk, maxChars));
 }
@@ -57,40 +54,35 @@ function findUpperBodyStartIndex(text: string): number {
 
 function splitChunkByPreferredBoundaries(chunk: string, maxChars: number): string[] {
   const chunks: string[] = [];
-  let remaining = chunk.trim();
+  let remaining = chunk;
 
   while (remaining.length > maxChars) {
-    let splitIndex = findMinorSectionSplitIndex(remaining, maxChars);
+    let splitIndex = findMinorSectionSplitIndex(remaining, maxChars + 1);
 
     if (splitIndex === -1) {
-      splitIndex = findLineStartSplitIndex(remaining, maxChars);
+      splitIndex = findLineStartSplitIndex(remaining, maxChars + 1);
     }
 
-    if (splitIndex <= 0 || splitIndex >= remaining.length) {
-      break;
+    if (splitIndex <= 0 || splitIndex > maxChars || splitIndex >= remaining.length) {
+      splitIndex = findWhitespaceSplitIndex(remaining, maxChars);
     }
 
-    const head = remaining.slice(0, splitIndex).trimEnd();
-    const tail = remaining.slice(splitIndex).trimStart();
-
-    if (!head || !tail) {
-      break;
+    if (splitIndex <= 0 || splitIndex > maxChars || splitIndex >= remaining.length) {
+      splitIndex = maxChars;
     }
+
+    const head = remaining.slice(0, splitIndex);
+    const tail = remaining.slice(splitIndex);
 
     chunks.push(head);
     remaining = tail;
   }
 
-  chunks.push(remaining);
-  return chunks;
-}
+  if (remaining.length > 0) {
+    chunks.push(remaining);
+  }
 
-function removePlusOnlyBulletLines(text: string): string {
-  return text
-    .split('\n')
-    .filter((line) => !PLUS_ONLY_BULLET_LINE_PATTERN.test(line) && !PLUS_ONLY_LINE_PATTERN.test(line))
-    .join('\n')
-    .trim();
+  return chunks.filter((part) => part.trim().length > 0);
 }
 
 function findMinorSectionSplitIndex(text: string, maxChars: number): number {
@@ -124,4 +116,14 @@ function findLineStartSplitIndex(text: string, maxChars: number): number {
   }
 
   return bestIndex;
+}
+
+function findWhitespaceSplitIndex(text: string, maxChars: number): number {
+  for (let i = maxChars; i > 0; i--) {
+    if (/\s/.test(text[i])) {
+      return i;
+    }
+  }
+
+  return -1;
 }

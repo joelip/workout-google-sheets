@@ -344,7 +344,9 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
 
     if (!sheetOwner || !sheetTitle || !notionPageTitle || (requiresSessionCell && !cellId)) {
       console.error('Missing required arguments. Please provide:\n');
-      console.error('  --session-cell <cell>     Cell reference (e.g., B2)');
+      if (requiresSessionCell) {
+        console.error('  --session-cell <cell>     Cell reference (e.g., B2)');
+      }
       console.error('  --notion-page <title>     Title of nested Notion page');
       console.error('  --sheet-owner <email>     Google Sheets owner email');
       console.error('  --sheet-title <title>     Google Sheets document title\n');

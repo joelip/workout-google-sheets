@@ -38,6 +38,14 @@ describe('post-workout sheets chunking', () => {
     expect(chunks.every((chunk) => chunk.length <= 3000)).toBe(true);
   });
 
+  test('hard-splits when no line boundary exists before max chars', () => {
+    const longLine = `### Lower Body:\n${'x'.repeat(5000)}`;
+    const chunks = splitWorkoutTextForSheets(longLine, 2048);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.every((chunk) => chunk.length <= 2048)).toBe(true);
+  });
+
   test('removes plus-only bullet artifacts from rendered text', () => {
     const output = renderWorkoutTextOutput({
       overallNotes: '### Overall Notes:\n- Keep moving',

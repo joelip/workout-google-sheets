@@ -1,8 +1,8 @@
 import type { WorkoutSession, WorkoutSectionData } from './notion';
 import { RMResolver, loadRMConfig } from './rm-resolver';
+import { isPlusOnlyMarkerLine } from './text-cleaning';
 
-export const MINOR_SECTION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression|conditioning):?$/i;
-const PLUS_ONLY_MARKER_PATTERN = /^(?:[-*]\s*)?\+$/;
+const MINOR_SECTION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression|conditioning):?$/i;
 
 export class WorkoutParser {
   private static readonly SECTION_HEADER_PATTERN = /^[A-Z]\d*\./;
@@ -68,10 +68,10 @@ export class WorkoutParser {
         const youtubeLinks = this.extractYouTubeLinks(line);
         const cleanedLine = this.removeYouTubeLinks(line).trim();
 
-        if ((cleanedLine && !this.isPlusOnlyMarker(cleanedLine)) || youtubeLinks.length > 0) {
+        if ((cleanedLine && !isPlusOnlyMarkerLine(cleanedLine)) || youtubeLinks.length > 0) {
           sections.push({
             type: 'text',
-            content: cleanedLine && !this.isPlusOnlyMarker(cleanedLine) ? [cleanedLine] : [],
+            content: cleanedLine && !isPlusOnlyMarkerLine(cleanedLine) ? [cleanedLine] : [],
             youtubeLinks: youtubeLinks
           });
         }
@@ -82,17 +82,17 @@ export class WorkoutParser {
         }
 
         const cleanedLine = this.removeYouTubeLinks(line).trim();
-        if (cleanedLine && !this.isPlusOnlyMarker(cleanedLine)) {
+        if (cleanedLine && !isPlusOnlyMarkerLine(cleanedLine)) {
           currentSection.content.push(cleanedLine);
         }
       } else {
         const youtubeLinks = this.extractYouTubeLinks(line);
         const cleanedLine = this.removeYouTubeLinks(line).trim();
 
-        if ((cleanedLine && !this.isPlusOnlyMarker(cleanedLine)) || youtubeLinks.length > 0) {
+        if ((cleanedLine && !isPlusOnlyMarkerLine(cleanedLine)) || youtubeLinks.length > 0) {
           sections.push({
             type: 'text',
-            content: cleanedLine && !this.isPlusOnlyMarker(cleanedLine) ? [cleanedLine] : [],
+            content: cleanedLine && !isPlusOnlyMarkerLine(cleanedLine) ? [cleanedLine] : [],
             youtubeLinks: youtubeLinks
           });
         }
@@ -123,10 +123,6 @@ export class WorkoutParser {
 
   private static isAsteriskLine(line: string): boolean {
     return this.ASTERISK_PREFIX_PATTERN.test(line.trim());
-  }
-
-  private static isPlusOnlyMarker(line: string): boolean {
-    return PLUS_ONLY_MARKER_PATTERN.test(line.trim());
   }
 
   private static isStandaloneParagraph(line: string): boolean {
