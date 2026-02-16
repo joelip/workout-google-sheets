@@ -1,5 +1,6 @@
 import type { WorkoutSession, WorkoutSectionData } from './notion';
 import { RMResolver, loadRMConfig } from './rm-resolver';
+import type { SheetValues } from './sheets';
 import { isPlusOnlyMarkerLine } from './text-cleaning';
 
 const MINOR_SECTION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression|conditioning):?$/i;
@@ -10,7 +11,7 @@ export class WorkoutParser {
   private static readonly YOUTUBE_URL_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
   private static readonly ASTERISK_PREFIX_PATTERN = /^\*{2,}/;
 
-  static parseWorkoutData(cellData: any[][]): WorkoutSession[] {
+  static parseWorkoutData(cellData: SheetValues): WorkoutSession[] {
     const sessions: WorkoutSession[] = [];
 
     cellData.forEach((row, sessionIndex) => {
@@ -33,9 +34,9 @@ export class WorkoutParser {
   }
 
   private static parseCellData(cellContent: string, sessionNumber: number): WorkoutSession {
-    const lines = cellContent.split('\n').map(line => line.trim()).filter(line => line);
-    const sections: any[] = [];
-    let currentSection: any = null;
+    const lines = cellContent.split('\n').map((line) => line.trim()).filter((line) => line);
+    const sections: WorkoutSectionData[] = [];
+    let currentSection: WorkoutSectionData | null = null;
 
     for (const line of lines) {
       if (this.isSectionHeader(line)) {
@@ -46,7 +47,7 @@ export class WorkoutParser {
           type: 'section',
           header: line.trim(),
           content: [],
-          youtubeLinks: []
+          youtubeLinks: [],
         };
       } else if (this.isUpperLowerBody(line)) {
         if (currentSection) {
@@ -56,7 +57,7 @@ export class WorkoutParser {
           type: 'upper_lower',
           header: line.trim(),
           content: [],
-          youtubeLinks: []
+          youtubeLinks: [],
         };
       } else if (this.isStandaloneParagraph(line)) {
         // Push current section first before adding standalone paragraph
@@ -72,7 +73,7 @@ export class WorkoutParser {
           sections.push({
             type: 'text',
             content: cleanedLine && !isPlusOnlyMarkerLine(cleanedLine) ? [cleanedLine] : [],
-            youtubeLinks: youtubeLinks
+            youtubeLinks,
           });
         }
       } else if (currentSection) {
@@ -93,7 +94,7 @@ export class WorkoutParser {
           sections.push({
             type: 'text',
             content: cleanedLine && !isPlusOnlyMarkerLine(cleanedLine) ? [cleanedLine] : [],
-            youtubeLinks: youtubeLinks
+            youtubeLinks,
           });
         }
       }
@@ -105,7 +106,7 @@ export class WorkoutParser {
 
     return {
       sessionNumber,
-      sections
+      sections,
     };
   }
 
@@ -133,7 +134,7 @@ export class WorkoutParser {
     const matches = text.match(this.YOUTUBE_URL_PATTERN);
     if (!matches) return [];
 
-    return matches.map(match => {
+    return matches.map((match) => {
       const fullUrl = match.startsWith('http') ? match : `https://${match}`;
       return this.normalizeYouTubeUrl(fullUrl);
     });
@@ -177,7 +178,7 @@ export class WorkoutParser {
     // Deep clone the session to avoid mutating the original
     const resolvedSession: WorkoutSession = {
       sessionNumber: session.sessionNumber,
-      sections: session.sections.map(section => ({
+      sections: session.sections.map((section) => ({
         ...section,
         header: section.header,
         content: [...section.content],
@@ -196,7 +197,7 @@ export class WorkoutParser {
       }
 
       // Resolve RM references in content lines
-      section.content = section.content.map(line =>
+      section.content = section.content.map((line) =>
         resolver.resolveLine(line, contextLine)
       );
     }

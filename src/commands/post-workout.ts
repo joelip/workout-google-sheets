@@ -1,13 +1,15 @@
 import { GoogleSheetsAuth } from '../auth';
 import { GoogleSheetsClient } from '../sheets';
-import { NotionClient } from '../notion';
+import { fail } from '../command-runtime';
 import {
   renderWorkoutTextOutput,
   splitWorkoutTextForSheets,
 } from '../post-workout-chunking';
 import fs from 'fs/promises';
-import { Client } from '@notionhq/client';
-import { google } from 'googleapis';
+import { Client, isFullBlock } from '@notionhq/client';
+import type { BlockObjectResponse, RichTextItemResponse } from '@notionhq/client';
+import { OAuth2Client } from 'google-auth-library';
+import { google, sheets_v4 } from 'googleapis';
 
 interface Config {
   notion: {
@@ -35,17 +37,23 @@ interface PostWorkoutOptions {
   sheetsChunked?: boolean;
 }
 
+type BlockWithDepth = BlockObjectResponse & { depth: number };
+
 async function loadConfig(): Promise<Config> {
   const configContent = await fs.readFile('config.json', 'utf8');
   return JSON.parse(configContent);
 }
 
-class PostWorkoutClient extends NotionClient {
+function getFirstPlainText(richText?: RichTextItemResponse[]): string | null {
+  const first = richText?.[0];
+  return first?.plain_text ?? null;
+}
+
+class PostWorkoutClient {
   private notion: Client;
   private parentPageId: string;
 
   constructor(config: Config) {
-    super(config);
     this.notion = new Client({
       auth: config.notion.token,
     });
@@ -53,89 +61,39 @@ class PostWorkoutClient extends NotionClient {
   }
 
   async findNestedPage(pageTitle: string): Promise<string | null> {
-    try {
-      let hasMore = true;
-      let nextCursor: string | undefined;
+    let hasMore = true;
+    let nextCursor: string | undefined;
 
-      while (hasMore) {
-        const response = await this.notion.blocks.children.list({
-          block_id: this.parentPageId,
-          page_size: 100,
-          start_cursor: nextCursor,
-        });
+    while (hasMore) {
+      const response = await this.notion.blocks.children.list({
+        block_id: this.parentPageId,
+        page_size: 100,
+        start_cursor: nextCursor,
+      });
 
-        for (const block of response.results) {
-          if (block.type === 'child_page' && 'child_page' in block) {
-            if (block.child_page.title === pageTitle) {
-              return block.id;
-            }
-          }
+      for (const block of response.results) {
+        if (!isFullBlock(block)) {
+          continue;
         }
 
-        hasMore = response.has_more;
-        nextCursor = response.next_cursor || undefined;
-      }
-
-      return null;
-    } catch (error) {
-      throw new Error(`Error searching for nested page "${pageTitle}": ${error}`);
-    }
-  }
-
-  async extractPageContent(pageId: string): Promise<any[]> {
-    try {
-      return await this.extractBlocksIteratively(pageId);
-    } catch (error) {
-      throw new Error(`Error extracting content from page ${pageId}: ${error}`);
-    }
-  }
-
-  private async extractBlocksIteratively(rootBlockId: string): Promise<any[]> {
-    const allBlocks: any[] = [];
-
-    const queue: Array<{ blockId: string; depth: number }> = [
-      { blockId: rootBlockId, depth: 0 }
-    ];
-
-    while (queue.length > 0) {
-      const { blockId, depth } = queue.shift()!;
-
-      const children: any[] = [];
-      let hasMore = true;
-      let nextCursor: string | undefined;
-
-      while (hasMore) {
-        const response = await this.notion.blocks.children.list({
-          block_id: blockId,
-          page_size: 100,
-          start_cursor: nextCursor,
-        });
-
-        for (const block of response.results) {
-          (block as any).depth = depth;
-          children.push(block);
-        }
-
-        hasMore = response.has_more;
-        nextCursor = response.next_cursor || undefined;
-      }
-
-      for (const child of children) {
-        allBlocks.push(child);
-
-        if (child.has_children) {
-          const descendants = await this.extractDescendants(child.id, depth + 1);
-          allBlocks.push(...descendants);
+        if (block.type === 'child_page' && block.child_page.title === pageTitle) {
+          return block.id;
         }
       }
+
+      hasMore = response.has_more;
+      nextCursor = response.next_cursor || undefined;
     }
 
-    return allBlocks;
+    return null;
   }
 
-  private async extractDescendants(blockId: string, depth: number): Promise<any[]> {
-    const descendants: any[] = [];
+  async extractPageContent(pageId: string): Promise<BlockWithDepth[]> {
+    return this.extractDescendants(pageId, 0);
+  }
 
+  private async listChildren(blockId: string): Promise<BlockObjectResponse[]> {
+    const children: BlockObjectResponse[] = [];
     let hasMore = true;
     let nextCursor: string | undefined;
 
@@ -147,12 +105,8 @@ class PostWorkoutClient extends NotionClient {
       });
 
       for (const block of response.results) {
-        (block as any).depth = depth;
-        descendants.push(block);
-
-        if (block.has_children) {
-          const childDescendants = await this.extractDescendants(block.id, depth + 1);
-          descendants.push(...childDescendants);
+        if (isFullBlock(block)) {
+          children.push(block);
         }
       }
 
@@ -160,10 +114,29 @@ class PostWorkoutClient extends NotionClient {
       nextCursor = response.next_cursor || undefined;
     }
 
+    return children;
+  }
+
+  private async extractDescendants(blockId: string, depth: number): Promise<BlockWithDepth[]> {
+    const descendants: BlockWithDepth[] = [];
+    const children = await this.listChildren(blockId);
+
+    for (const child of children) {
+      descendants.push({
+        ...child,
+        depth,
+      });
+
+      if (child.has_children) {
+        const childDescendants = await this.extractDescendants(child.id, depth + 1);
+        descendants.push(...childDescendants);
+      }
+    }
+
     return descendants;
   }
 
-  convertBlocksToMarkdown(blocks: any[]): string {
+  convertBlocksToMarkdown(blocks: BlockWithDepth[]): string {
     const markdownLines: string[] = [];
 
     for (const block of blocks) {
@@ -171,47 +144,49 @@ class PostWorkoutClient extends NotionClient {
         continue;
       }
 
-      const depth = block.depth || 0;
-      const indent = '  '.repeat(depth);
+      const indent = '  '.repeat(block.depth);
 
       switch (block.type) {
-        case 'heading_1':
-          if (block.heading_1?.rich_text?.[0]?.text?.content) {
-            markdownLines.push(`# ${block.heading_1.rich_text[0].text.content}`);
+        case 'heading_1': {
+          const text = getFirstPlainText(block.heading_1.rich_text);
+          if (text) {
+            markdownLines.push(`# ${text}`);
           }
           break;
-
-        case 'heading_2':
-          if (block.heading_2?.rich_text?.[0]?.text?.content) {
-            markdownLines.push(`## ${block.heading_2.rich_text[0].text.content}`);
+        }
+        case 'heading_2': {
+          const text = getFirstPlainText(block.heading_2.rich_text);
+          if (text) {
+            markdownLines.push(`## ${text}`);
           }
           break;
-
-        case 'heading_3':
-          if (block.heading_3?.rich_text?.[0]?.text?.content) {
-            markdownLines.push(`### ${block.heading_3.rich_text[0].text.content}`);
+        }
+        case 'heading_3': {
+          const text = getFirstPlainText(block.heading_3.rich_text);
+          if (text) {
+            markdownLines.push(`### ${text}`);
           }
           break;
-
-        case 'paragraph':
-          if (block.paragraph?.rich_text?.[0]?.text?.content) {
-            markdownLines.push(`${indent}${block.paragraph.rich_text[0].text.content}`);
-          } else {
-            markdownLines.push('');
+        }
+        case 'paragraph': {
+          const text = getFirstPlainText(block.paragraph.rich_text);
+          markdownLines.push(text ? `${indent}${text}` : '');
+          break;
+        }
+        case 'bulleted_list_item': {
+          const text = getFirstPlainText(block.bulleted_list_item.rich_text);
+          if (text) {
+            markdownLines.push(`${indent}- ${text}`);
           }
           break;
-
-        case 'bulleted_list_item':
-          if (block.bulleted_list_item?.rich_text?.[0]?.text?.content) {
-            markdownLines.push(`${indent}- ${block.bulleted_list_item.rich_text[0].text.content}`);
+        }
+        case 'numbered_list_item': {
+          const text = getFirstPlainText(block.numbered_list_item.rich_text);
+          if (text) {
+            markdownLines.push(`${indent}1. ${text}`);
           }
           break;
-
-        case 'numbered_list_item':
-          if (block.numbered_list_item?.rich_text?.[0]?.text?.content) {
-            markdownLines.push(`${indent}1. ${block.numbered_list_item.rich_text[0].text.content}`);
-          }
-          break;
+        }
       }
     }
 
@@ -268,46 +243,42 @@ class PostWorkoutClient extends NotionClient {
 }
 
 class ExtendedGoogleSheetsClient extends GoogleSheetsClient {
-  private sheets: any;
+  private rawSheets: sheets_v4.Sheets;
 
-  constructor(auth: any) {
+  constructor(auth: OAuth2Client) {
     super(auth);
-    this.sheets = google.sheets({ version: 'v4', auth });
+    this.rawSheets = google.sheets({ version: 'v4', auth });
   }
 
   async addCommentToCell(spreadsheetId: string, cellReference: string, comment: string): Promise<void> {
-    try {
-      await this.sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        resource: {
-          requests: [
-            {
-              updateCells: {
-                rows: [
-                  {
-                    values: [
-                      {
-                        note: comment
-                      }
-                    ]
-                  }
-                ],
-                fields: 'note',
-                range: {
-                  sheetId: 0,
-                  startRowIndex: this.getCellRowIndex(cellReference),
-                  endRowIndex: this.getCellRowIndex(cellReference) + 1,
-                  startColumnIndex: this.getCellColumnIndex(cellReference),
-                  endColumnIndex: this.getCellColumnIndex(cellReference) + 1,
-                }
-              }
-            }
-          ],
-        },
-      });
-    } catch (error) {
-      throw new Error(`Error adding comment to cell ${cellReference}: ${error}`);
-    }
+    await this.rawSheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            updateCells: {
+              rows: [
+                {
+                  values: [
+                    {
+                      note: comment,
+                    },
+                  ],
+                },
+              ],
+              fields: 'note',
+              range: {
+                sheetId: 0,
+                startRowIndex: this.getCellRowIndex(cellReference),
+                endRowIndex: this.getCellRowIndex(cellReference) + 1,
+                startColumnIndex: this.getCellColumnIndex(cellReference),
+                endColumnIndex: this.getCellColumnIndex(cellReference) + 1,
+              },
+            },
+          },
+        ],
+      },
+    });
   }
 
   private getCellRowIndex(cellReference: string): number {
@@ -335,91 +306,87 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
   const cellId = options.sessionCell;
   const requiresSessionCell = !textMode;
 
-  try {
-    const config = await loadConfig();
+  const config = await loadConfig();
 
-    const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
-    const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
-    const notionPageTitle = options.notionPage;
+  const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
+  const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
+  const notionPageTitle = options.notionPage;
 
-    if (!sheetOwner || !sheetTitle || !notionPageTitle || (requiresSessionCell && !cellId)) {
-      console.error('Missing required arguments. Please provide:\n');
-      if (requiresSessionCell) {
-        console.error('  --session-cell <cell>     Cell reference (e.g., B2)');
-      }
-      console.error('  --notion-page <title>     Title of nested Notion page');
-      console.error('  --sheet-owner <email>     Google Sheets owner email');
-      console.error('  --sheet-title <title>     Google Sheets document title\n');
-      console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
-      console.error('Note: --session-cell is optional when --text or --sheets-chunked is provided');
-      process.exit(1);
-    }
-
-    console.log('Connecting to Notion...');
-    const postWorkoutClient = new PostWorkoutClient(config);
-
-    console.log(`Searching for nested page: ${notionPageTitle}`);
-    const pageId = await postWorkoutClient.findNestedPage(notionPageTitle);
-
-    if (!pageId) {
-      console.error(`Notion page "${notionPageTitle}" not found in parent page`);
-      process.exit(1);
-    }
-
-    console.log(`Found page: ${pageId}`);
-    console.log('Extracting page content...');
-    const blocks = await postWorkoutClient.extractPageContent(pageId);
-
-    console.log('Converting blocks to markdown...');
-    const markdown = postWorkoutClient.convertBlocksToMarkdown(blocks);
-
-    console.log('Splitting content by workout sections...');
-    const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
-
-    if (textMode) {
-      const textOutput = renderWorkoutTextOutput(workoutContent);
-
-      if (options.sheetsChunked) {
-        const chunks = splitWorkoutTextForSheets(textOutput);
-        chunks.forEach((chunk, index) => {
-          if (index > 0) {
-            console.log('');
-          }
-          console.log(`--- Chunk ${index + 1}/${chunks.length} (${chunk.length} chars) ---`);
-          console.log(chunk);
-        });
-      } else if (textOutput) {
-        console.log(`\n${textOutput}`);
-      }
-
-      return;
-    }
-
-    console.log('Authenticating with Google Sheets API...');
-    const auth = new GoogleSheetsAuth();
-    const oAuth2Client = await auth.authenticate();
-
-    const sheetsClient = new ExtendedGoogleSheetsClient(oAuth2Client);
-
-    console.log(`Searching for sheet "${sheetTitle}" owned by ${sheetOwner}...`);
-    const sheetInfo = await sheetsClient.findSheetByOwnerAndTitle(sheetOwner, sheetTitle);
-
-    if (!sheetInfo) {
-      console.error('Sheet not found');
-      process.exit(1);
-    }
-
-    console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
-
-    const combinedComment = renderWorkoutTextOutput(workoutContent);
-
-    console.log(`Adding workout comment to cell ${cellId}...`);
-    await sheetsClient.addCommentToCell(sheetInfo.id, cellId, combinedComment);
-
-    console.log('✅ Successfully posted workout content as comments');
-
-  } catch (error) {
-    console.error('Error:', error);
-    process.exit(1);
+  if (!sheetOwner || !sheetTitle || !notionPageTitle || (requiresSessionCell && !cellId)) {
+    fail(
+      'Missing required arguments. Please provide:\n'
+      + `${requiresSessionCell ? '  --session-cell <cell>     Cell reference (e.g., B2)\n' : ''}`
+      + '  --notion-page <title>     Title of nested Notion page\n'
+      + '  --sheet-owner <email>     Google Sheets owner email\n'
+      + '  --sheet-title <title>     Google Sheets document title\n\n'
+      + 'Note: sheet-owner and sheet-title can be set as defaults in config.json\n'
+      + 'Note: --session-cell is optional when --text or --sheets-chunked is provided'
+    );
   }
+
+  console.log('Connecting to Notion...');
+  const postWorkoutClient = new PostWorkoutClient(config);
+
+  console.log(`Searching for nested page: ${notionPageTitle}`);
+  const pageId = await postWorkoutClient.findNestedPage(notionPageTitle);
+
+  if (!pageId) {
+    fail(`Notion page "${notionPageTitle}" not found in parent page`);
+  }
+
+  console.log(`Found page: ${pageId}`);
+  console.log('Extracting page content...');
+  const blocks = await postWorkoutClient.extractPageContent(pageId);
+
+  console.log('Converting blocks to markdown...');
+  const markdown = postWorkoutClient.convertBlocksToMarkdown(blocks);
+
+  if (options.sheetsChunked) {
+    console.log('Splitting content by workout sections for Sheets chunking...');
+  } else {
+    console.log('Preparing structured workout content...');
+  }
+  const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
+
+  if (textMode) {
+    const textOutput = renderWorkoutTextOutput(workoutContent);
+
+    if (options.sheetsChunked) {
+      const chunks = splitWorkoutTextForSheets(textOutput);
+      chunks.forEach((chunk, index) => {
+        if (index > 0) {
+          console.log('');
+        }
+        console.log(`--- Chunk ${index + 1}/${chunks.length} (${chunk.length} chars) ---`);
+        console.log(chunk);
+      });
+    } else if (textOutput) {
+      console.log(`\n${textOutput}`);
+    }
+
+    return;
+  }
+
+  console.log('Authenticating with Google Sheets API...');
+  const auth = new GoogleSheetsAuth();
+  const oAuth2Client = await auth.authenticate();
+
+  const sheetsClient = new ExtendedGoogleSheetsClient(oAuth2Client);
+
+  console.log(`Searching for sheet "${sheetTitle}" owned by ${sheetOwner}...`);
+  const sheetInfo = await sheetsClient.findSheetByOwnerAndTitle(sheetOwner, sheetTitle);
+
+  if (!sheetInfo) {
+    fail('Sheet not found');
+  }
+
+  console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
+
+  const combinedComment = renderWorkoutTextOutput(workoutContent);
+
+  const targetCellId = cellId || fail('Missing --session-cell <cell> argument.');
+  console.log(`Adding workout comment to cell ${targetCellId}...`);
+  await sheetsClient.addCommentToCell(sheetInfo.id, targetCellId, combinedComment);
+
+  console.log('✅ Successfully posted workout content as comments');
 }

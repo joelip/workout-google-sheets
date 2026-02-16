@@ -1,4 +1,5 @@
 import { Client } from '@notionhq/client';
+import type { BlockObjectRequest, CreatePageParameters } from '@notionhq/client';
 import fs from 'fs/promises';
 
 interface Config {
@@ -20,6 +21,8 @@ export interface WorkoutSectionData {
   youtubeLinks: string[];
 }
 
+const NOTION_MAX_CHILDREN_PER_REQUEST = 100;
+
 export class NotionClient {
   private notion: Client;
   private parentPageId: string;
@@ -38,309 +41,165 @@ export class NotionClient {
   }
 
   async createWorkoutPage(title: string, sessions: WorkoutSession[], icon?: string): Promise<string> {
-    const allBlocks = await this.buildPageContent(sessions);
+    const allBlocks = this.buildPageContent(sessions);
+    return this.createPageWithChildren(title, allBlocks, icon);
+  }
 
-    const initialBlocks = allBlocks.slice(0, 100);
-    const remainingBlocks = allBlocks.slice(100);
+  async createDayWorkoutPage(title: string, session: WorkoutSession): Promise<string> {
+    const blocks = this.buildSingleSessionContent(session);
+    return this.createPageWithChildren(title, blocks);
+  }
 
-    const pageData: any = {
+  async appendBlocksToPage(pageId: string, blocks: BlockObjectRequest[]): Promise<void> {
+    await this.appendBlocksInChunks(pageId, blocks);
+  }
+
+  private async createPageWithChildren(
+    title: string,
+    blocks: BlockObjectRequest[],
+    icon?: string
+  ): Promise<string> {
+    const initialBlocks = blocks.slice(0, NOTION_MAX_CHILDREN_PER_REQUEST);
+    const remainingBlocks = blocks.slice(NOTION_MAX_CHILDREN_PER_REQUEST);
+
+    const page = await this.notion.pages.create(this.buildCreatePagePayload(title, initialBlocks, icon));
+
+    if (remainingBlocks.length > 0) {
+      await this.appendBlocksInChunks(page.id, remainingBlocks);
+    }
+
+    return page.id;
+  }
+
+  private buildCreatePagePayload(
+    title: string,
+    children: BlockObjectRequest[],
+    icon?: string
+  ): CreatePageParameters {
+    const pageData: CreatePageParameters = {
       parent: {
         type: 'page_id',
         page_id: this.parentPageId,
       },
       properties: {
         title: {
-          title: [
-            {
-              text: {
-                content: title,
-              },
-            },
-          ],
+          title: [this.textRichText(title)],
         },
       },
-      children: initialBlocks,
+      children,
     };
 
     if (icon) {
       pageData.icon = {
         type: 'emoji',
         emoji: icon,
-      };
+      } as NonNullable<CreatePageParameters['icon']>;
     }
 
-    const page = await this.notion.pages.create(pageData);
-
-    if (remainingBlocks.length > 0) {
-      await this.appendBlocksInChunks(page.id, remainingBlocks);
-    }
-
-    return page.id;
+    return pageData;
   }
 
-  async createDayWorkoutPage(title: string, session: WorkoutSession): Promise<string> {
-    const blocks = await this.buildSingleSessionContent(session);
-
-    const initialBlocks = blocks.slice(0, 100);
-    const remainingBlocks = blocks.slice(100);
-
-    const page = await this.notion.pages.create({
-      parent: {
-        type: 'page_id',
-        page_id: this.parentPageId,
-      },
-      properties: {
-        title: {
-          title: [
-            {
-              text: {
-                content: title,
-              },
-            },
-          ],
-        },
-      },
-      children: initialBlocks,
-    });
-
-    if (remainingBlocks.length > 0) {
-      await this.appendBlocksInChunks(page.id, remainingBlocks);
-    }
-
-    return page.id;
-  }
-
-  private async buildPageContent(sessions: WorkoutSession[]): Promise<any[]> {
-    const blocks: any[] = [];
+  private buildPageContent(sessions: WorkoutSession[]): BlockObjectRequest[] {
+    const blocks: BlockObjectRequest[] = [];
 
     for (const session of sessions) {
-      blocks.push({
-        object: 'block',
-        type: 'heading_2',
-        heading_2: {
-          rich_text: [
-            {
-              type: 'text',
-              text: {
-                content: `Session ${session.sessionNumber}`,
-              },
-            },
-          ],
-        },
-      });
-
-      for (const section of session.sections) {
-        if (section.type === 'section' && section.header) {
-          blocks.push({
-            object: 'block',
-            type: 'paragraph',
-            paragraph: {
-              rich_text: [
-                {
-                  type: 'text',
-                  text: {
-                    content: section.header,
-                  },
-                },
-              ],
-            },
-          });
-
-          for (const item of section.content) {
-            blocks.push({
-              object: 'block',
-              type: 'bulleted_list_item',
-              bulleted_list_item: {
-                rich_text: [
-                  {
-                    type: 'text',
-                    text: {
-                      content: item,
-                    },
-                  },
-                ],
-              },
-            });
-          }
-        } else if (section.type === 'upper_lower' && section.header) {
-          blocks.push({
-            object: 'block',
-            type: 'heading_3',
-            heading_3: {
-              rich_text: [
-                {
-                  type: 'text',
-                  text: {
-                    content: section.header,
-                  },
-                },
-              ],
-            },
-          });
-
-          for (const item of section.content) {
-            blocks.push({
-              object: 'block',
-              type: 'bulleted_list_item',
-              bulleted_list_item: {
-                rich_text: [
-                  {
-                    type: 'text',
-                    text: {
-                      content: item,
-                    },
-                  },
-                ],
-              },
-            });
-          }
-        } else if (section.type === 'text') {
-          for (const item of section.content) {
-            blocks.push({
-              object: 'block',
-              type: 'paragraph',
-              paragraph: {
-                rich_text: [
-                  {
-                    type: 'text',
-                    text: {
-                      content: item,
-                    },
-                  },
-                ],
-              },
-            });
-          }
-        }
-
-        for (const youtubeUrl of section.youtubeLinks) {
-          blocks.push({
-            object: 'block',
-            type: 'embed',
-            embed: {
-              url: youtubeUrl,
-            },
-          });
-        }
-      }
+      blocks.push(this.heading2Block(`Session ${session.sessionNumber}`));
+      blocks.push(...this.buildSectionsContent(session.sections));
     }
 
     return blocks;
   }
 
-  private async buildSingleSessionContent(session: WorkoutSession): Promise<any[]> {
-    const blocks: any[] = [];
+  private buildSingleSessionContent(session: WorkoutSession): BlockObjectRequest[] {
+    return this.buildSectionsContent(session.sections);
+  }
 
-    for (const section of session.sections) {
+  private buildSectionsContent(sections: WorkoutSectionData[]): BlockObjectRequest[] {
+    const blocks: BlockObjectRequest[] = [];
+
+    for (const section of sections) {
       if (section.type === 'section' && section.header) {
-        blocks.push({
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [
-              {
-                type: 'text',
-                text: {
-                  content: section.header,
-                },
-              },
-            ],
-          },
-        });
-
-        for (const item of section.content) {
-          blocks.push({
-            object: 'block',
-            type: 'bulleted_list_item',
-            bulleted_list_item: {
-              rich_text: [
-                {
-                  type: 'text',
-                  text: {
-                    content: item,
-                  },
-                },
-              ],
-            },
-          });
-        }
+        blocks.push(this.paragraphBlock(section.header));
+        blocks.push(...section.content.map((item) => this.bulletedListItemBlock(item)));
       } else if (section.type === 'upper_lower' && section.header) {
-        blocks.push({
-          object: 'block',
-          type: 'heading_3',
-          heading_3: {
-            rich_text: [
-              {
-                type: 'text',
-                text: {
-                  content: section.header,
-                },
-              },
-            ],
-          },
-        });
-
-        for (const item of section.content) {
-          blocks.push({
-            object: 'block',
-            type: 'bulleted_list_item',
-            bulleted_list_item: {
-              rich_text: [
-                {
-                  type: 'text',
-                  text: {
-                    content: item,
-                  },
-                },
-              ],
-            },
-          });
-        }
+        blocks.push(this.heading3Block(section.header));
+        blocks.push(...section.content.map((item) => this.bulletedListItemBlock(item)));
       } else if (section.type === 'text') {
-        for (const item of section.content) {
-          blocks.push({
-            object: 'block',
-            type: 'paragraph',
-            paragraph: {
-              rich_text: [
-                {
-                  type: 'text',
-                  text: {
-                    content: item,
-                  },
-                },
-              ],
-            },
-          });
-        }
+        blocks.push(...section.content.map((item) => this.paragraphBlock(item)));
       }
 
-      for (const youtubeUrl of section.youtubeLinks) {
-        blocks.push({
-          object: 'block',
-          type: 'embed',
-          embed: {
-            url: youtubeUrl,
-          },
-        });
-      }
+      blocks.push(...section.youtubeLinks.map((youtubeUrl) => this.embedBlock(youtubeUrl)));
     }
 
     return blocks;
   }
 
-  private async appendBlocksInChunks(pageId: string, blocks: any[]): Promise<void> {
-    const chunkSize = 100;
-    for (let i = 0; i < blocks.length; i += chunkSize) {
-      const chunk = blocks.slice(i, i + chunkSize);
+  private textRichText(content: string): { type: 'text'; text: { content: string } } {
+    return {
+      type: 'text',
+      text: {
+        content,
+      },
+    };
+  }
+
+  private paragraphBlock(content: string): BlockObjectRequest {
+    return {
+      object: 'block',
+      type: 'paragraph',
+      paragraph: {
+        rich_text: [this.textRichText(content)],
+      },
+    };
+  }
+
+  private bulletedListItemBlock(content: string): BlockObjectRequest {
+    return {
+      object: 'block',
+      type: 'bulleted_list_item',
+      bulleted_list_item: {
+        rich_text: [this.textRichText(content)],
+      },
+    };
+  }
+
+  private heading2Block(content: string): BlockObjectRequest {
+    return {
+      object: 'block',
+      type: 'heading_2',
+      heading_2: {
+        rich_text: [this.textRichText(content)],
+      },
+    };
+  }
+
+  private heading3Block(content: string): BlockObjectRequest {
+    return {
+      object: 'block',
+      type: 'heading_3',
+      heading_3: {
+        rich_text: [this.textRichText(content)],
+      },
+    };
+  }
+
+  private embedBlock(url: string): BlockObjectRequest {
+    return {
+      object: 'block',
+      type: 'embed',
+      embed: {
+        url,
+      },
+    };
+  }
+
+  private async appendBlocksInChunks(pageId: string, blocks: BlockObjectRequest[]): Promise<void> {
+    for (let i = 0; i < blocks.length; i += NOTION_MAX_CHILDREN_PER_REQUEST) {
+      const chunk = blocks.slice(i, i + NOTION_MAX_CHILDREN_PER_REQUEST);
       await this.notion.blocks.children.append({
         block_id: pageId,
         children: chunk,
       });
     }
-  }
-
-  async appendBlocksToPage(pageId: string, blocks: any[]): Promise<void> {
-    await this.appendBlocksInChunks(pageId, blocks);
   }
 }

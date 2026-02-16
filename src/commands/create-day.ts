@@ -2,6 +2,7 @@ import { GoogleSheetsAuth } from '../auth';
 import { GoogleSheetsClient } from '../sheets';
 import { NotionClient } from '../notion';
 import { WorkoutParser } from '../parser';
+import { fail } from '../command-runtime';
 import fs from 'fs/promises';
 
 interface Config {
@@ -44,97 +45,89 @@ function formatDateM_D_YYYY(date: Date): string {
 }
 
 export async function runCreateDay(options: CreateDayOptions): Promise<void> {
-  try {
-    const config = await loadConfig();
+  const config = await loadConfig();
 
-    const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
-    const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
-    let sessionCell = options.sessionCell;
+  const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
+  const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
+  let sessionCell = options.sessionCell;
 
-    if (!sessionCell && options.day) {
-      const day = Number(options.day);
-      if (!Number.isInteger(day) || !DAY_TO_CELL[day]) {
-        console.error('Invalid --day value. Supported days are: 1, 2, 3, 4.');
-        process.exit(1);
-      }
-      sessionCell = DAY_TO_CELL[day];
+  if (!sessionCell && options.day) {
+    const day = Number(options.day);
+    if (!Number.isInteger(day) || !DAY_TO_CELL[day]) {
+      fail('Invalid --day value. Supported days are: 1, 2, 3, 4.');
     }
-
-    if (!sheetOwner || !sheetTitle || !sessionCell) {
-      console.error('Missing required arguments. Please provide:\n');
-      console.error('  --sheet-owner <email>     Google Sheets owner email');
-      console.error('  --sheet-title <title>     Google Sheets document title');
-      console.error('  --day <day>               Workout day number (1-4 maps to B2-E2)');
-      console.error('  --session-cell <cell>     Single cell reference (e.g., B2)\n');
-      console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
-      process.exit(1);
-    }
-
-    const auth = new GoogleSheetsAuth();
-    console.log('Authenticating with Google Sheets API...');
-    const oAuth2Client = await auth.authenticate();
-
-    const sheetsClient = new GoogleSheetsClient(oAuth2Client);
-
-    console.log(`Searching for sheet "${sheetTitle}" owned by ${sheetOwner}...`);
-    const sheetInfo = await sheetsClient.findSheetByOwnerAndTitle(sheetOwner, sheetTitle);
-
-    if (!sheetInfo) {
-      console.log('Sheet not found');
-      process.exit(1);
-    }
-
-    console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
-    console.log(`URL: ${sheetInfo.url}`);
-
-    console.log(`Extracting data from cell: ${sessionCell}`);
-
-    const data = await sheetsClient.getCellRange(sheetInfo.id, sessionCell);
-
-    if (!data || data.length === 0 || !data[0] || !data[0][0]) {
-      console.log('No data found in the specified cell');
-      process.exit(1);
-    }
-
-    const cellContent = data[0][0];
-
-    console.log('Parsing workout data...');
-    let session = WorkoutParser.parseSingleCell(cellContent);
-    
-    // Resolve RM (rep max) references to actual weights
-    session = await WorkoutParser.resolveRepMaxes(session);
-
-    console.log(`Found workout session with ${session.sections.length} sections`);
-
-    // Handle --output option
-    if (options.output === 'text') {
-      console.log('\n--- Workout Content ---\n');
-      console.log(cellContent);
-      console.log('\n--- End Workout Content ---\n');
-    } else if (options.output === 'json') {
-      const output = JSON.stringify({ rawContent: cellContent, parsed: session }, null, 2);
-      await fs.writeFile('workout-output.json', output, 'utf8');
-      console.log('JSON output written to workout-output.json');
-    }
-
-    // If dry-run, exit without creating Notion page
-    if (options.dryRun) {
-      console.log('Dry run complete. Skipping Notion page creation.');
-      process.exit(0);
-    }
-
-    console.log('Connecting to Notion...');
-    const notionClient = await NotionClient.fromConfigFile();
-
-    const today = new Date();
-    const pageTitle = formatDateM_D_YYYY(today);
-    console.log(`Creating Notion page: ${pageTitle}`);
-
-    const pageId = await notionClient.createDayWorkoutPage(pageTitle, session);
-    console.log(`✅ Successfully created Notion page: ${pageId}`);
-
-  } catch (error) {
-    console.error('Error:', error);
-    process.exit(1);
+    sessionCell = DAY_TO_CELL[day];
   }
+
+  if (!sheetOwner || !sheetTitle || !sessionCell) {
+    fail(
+      'Missing required arguments. Please provide:\n'
+      + '  --sheet-owner <email>     Google Sheets owner email\n'
+      + '  --sheet-title <title>     Google Sheets document title\n'
+      + '  --day <day>               Workout day number (1-4 maps to B2-E2)\n'
+      + '  --session-cell <cell>     Single cell reference (e.g., B2)\n\n'
+      + 'Note: sheet-owner and sheet-title can be set as defaults in config.json'
+    );
+  }
+
+  const auth = new GoogleSheetsAuth();
+  console.log('Authenticating with Google Sheets API...');
+  const oAuth2Client = await auth.authenticate();
+
+  const sheetsClient = new GoogleSheetsClient(oAuth2Client);
+
+  console.log(`Searching for sheet "${sheetTitle}" owned by ${sheetOwner}...`);
+  const sheetInfo = await sheetsClient.findSheetByOwnerAndTitle(sheetOwner, sheetTitle);
+
+  if (!sheetInfo) {
+    fail('Sheet not found');
+  }
+
+  console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
+  console.log(`URL: ${sheetInfo.url}`);
+
+  console.log(`Extracting data from cell: ${sessionCell}`);
+
+  const data = await sheetsClient.getCellRange(sheetInfo.id, sessionCell);
+
+  if (!data || data.length === 0 || !data[0] || !data[0][0]) {
+    fail('No data found in the specified cell');
+  }
+
+  const cellContent = String(data[0][0]);
+
+  console.log('Parsing workout data...');
+  let session = WorkoutParser.parseSingleCell(cellContent);
+
+  // Resolve RM (rep max) references to actual weights
+  session = await WorkoutParser.resolveRepMaxes(session);
+
+  console.log(`Found workout session with ${session.sections.length} sections`);
+
+  // Handle --output option
+  if (options.output === 'text') {
+    console.log('\n--- Workout Content ---\n');
+    console.log(cellContent);
+    console.log('\n--- End Workout Content ---\n');
+  } else if (options.output === 'json') {
+    const output = JSON.stringify({ rawContent: cellContent, parsed: session }, null, 2);
+    await fs.writeFile('workout-output.json', output, 'utf8');
+    console.log('JSON output written to workout-output.json');
+  }
+
+  // If dry-run, exit without creating Notion page
+  if (options.dryRun) {
+    console.log('Dry run complete. Skipping Notion page creation.');
+    return;
+  }
+
+  console.log('Connecting to Notion...');
+  const notionClient = await NotionClient.fromConfigFile();
+
+  const today = new Date();
+  const pageTitle = formatDateM_D_YYYY(today);
+  console.log(`Creating Notion page: ${pageTitle}`);
+
+  const pageId = await notionClient.createDayWorkoutPage(pageTitle, session);
+  console.log(`✅ Successfully created Notion page: ${pageId}`);
 }

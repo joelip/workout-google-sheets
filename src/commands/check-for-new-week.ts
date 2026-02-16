@@ -1,6 +1,7 @@
 import { GoogleSheetsAuth } from '../auth';
 import { GoogleSheetsClient } from '../sheets';
 import type { SheetCellData } from '../sheets';
+import { fail } from '../command-runtime';
 import fs from 'fs/promises';
 
 interface Config {
@@ -58,76 +59,71 @@ function allCellsHaveNotes(cells: SheetCellData[]): boolean {
 }
 
 export async function runCheckForNewWeek(options: CheckForNewWeekOptions): Promise<void> {
-  try {
-    const config = await loadConfig();
+  const config = await loadConfig();
 
-    const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
-    const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
-    const latestRange = options.latestRange || 'B2:E2';
-    const previousRange = options.previousRange || 'B3:E3';
+  const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
+  const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
+  const latestRange = options.latestRange || 'B2:E2';
+  const previousRange = options.previousRange || 'B3:E3';
 
-    if (!sheetOwner || !sheetTitle) {
-      console.error('Missing required arguments. Please provide:\n');
-      console.error('  --sheet-owner <email>     Google Sheets owner email');
-      console.error('  --sheet-title <title>     Google Sheets document title\n');
-      console.error('Note: sheet-owner and sheet-title can be set as defaults in config.json');
-      process.exit(1);
-    }
-
-    const auth = new GoogleSheetsAuth();
-    console.log('Authenticating with Google Sheets API...');
-    const oAuth2Client = await auth.authenticate();
-
-    const sheetsClient = new GoogleSheetsClient(oAuth2Client);
-
-    console.log(`Searching for sheet "${sheetTitle}" owned by ${sheetOwner}...`);
-    const sheetInfo = await sheetsClient.findSheetByOwnerAndTitle(sheetOwner, sheetTitle);
-
-    if (!sheetInfo) {
-      console.error('Sheet not found');
-      process.exit(1);
-    }
-
-    const latestRows = await sheetsClient.getCellDataRange(sheetInfo.id, latestRange);
-    const previousRows = await sheetsClient.getCellDataRange(sheetInfo.id, previousRange);
-
-    const latestCells = flattenCells(latestRows);
-    const previousCells = flattenCells(previousRows);
-
-    const latestHasAnyFill = hasAnyFill(latestCells);
-    const previousAllFilled = allCellsHaveFill(previousCells);
-    const previousAllHaveNotes = allCellsHaveNotes(previousCells);
-    const previousHasFillAndComments = allCellsHaveFillAndNote(previousCells);
-    const hasNewWeek = previousAllFilled;
-
-    if (options.json) {
-      console.log(
-        JSON.stringify(
-          {
-            sheetId: sheetInfo.id,
-            latestRange,
-            previousRange,
-            latestHasAnyFill,
-            previousAllFilled,
-            previousAllHaveNotes,
-            previousHasFillAndComments,
-            hasNewWeek,
-          },
-          null,
-          2
-        )
-      );
-      return;
-    }
-
-    console.log(`Latest range (${latestRange}) has any fill: ${latestHasAnyFill ? 'yes' : 'no'}`);
-    console.log(`Previous range (${previousRange}) all cells filled: ${previousAllFilled ? 'yes' : 'no'}`);
-    console.log(`Previous range (${previousRange}) all cells have notes: ${previousAllHaveNotes ? 'yes' : 'no'}`);
-    console.log(`Previous range (${previousRange}) has fill + note in all cells: ${previousHasFillAndComments ? 'yes' : 'no'}`);
-    console.log('Heuristic: new week is detected when previous range is fully filled');
-    console.log(`New week detected: ${hasNewWeek ? 'yes' : 'no'}`);
-  } catch (error) {
-    console.error('Error:', error);
-    process.exit(1);
+  if (!sheetOwner || !sheetTitle) {
+    fail(
+      'Missing required arguments. Please provide:\n'
+      + '  --sheet-owner <email>     Google Sheets owner email\n'
+      + '  --sheet-title <title>     Google Sheets document title\n\n'
+      + 'Note: sheet-owner and sheet-title can be set as defaults in config.json'
+    );
   }
+
+  const auth = new GoogleSheetsAuth();
+  console.log('Authenticating with Google Sheets API...');
+  const oAuth2Client = await auth.authenticate();
+
+  const sheetsClient = new GoogleSheetsClient(oAuth2Client);
+
+  console.log(`Searching for sheet "${sheetTitle}" owned by ${sheetOwner}...`);
+  const sheetInfo = await sheetsClient.findSheetByOwnerAndTitle(sheetOwner, sheetTitle);
+
+  if (!sheetInfo) {
+    fail('Sheet not found');
+  }
+
+  const latestRows = await sheetsClient.getCellDataRange(sheetInfo.id, latestRange);
+  const previousRows = await sheetsClient.getCellDataRange(sheetInfo.id, previousRange);
+
+  const latestCells = flattenCells(latestRows);
+  const previousCells = flattenCells(previousRows);
+
+  const latestHasAnyFill = hasAnyFill(latestCells);
+  const previousAllFilled = allCellsHaveFill(previousCells);
+  const previousAllHaveNotes = allCellsHaveNotes(previousCells);
+  const previousHasFillAndComments = allCellsHaveFillAndNote(previousCells);
+  const hasNewWeek = previousAllFilled;
+
+  if (options.json) {
+    console.log(
+      JSON.stringify(
+        {
+          sheetId: sheetInfo.id,
+          latestRange,
+          previousRange,
+          latestHasAnyFill,
+          previousAllFilled,
+          previousAllHaveNotes,
+          previousHasFillAndComments,
+          hasNewWeek,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
+  console.log(`Latest range (${latestRange}) has any fill: ${latestHasAnyFill ? 'yes' : 'no'}`);
+  console.log(`Previous range (${previousRange}) all cells filled: ${previousAllFilled ? 'yes' : 'no'}`);
+  console.log(`Previous range (${previousRange}) all cells have notes: ${previousAllHaveNotes ? 'yes' : 'no'}`);
+  console.log(`Previous range (${previousRange}) has fill + note in all cells: ${previousHasFillAndComments ? 'yes' : 'no'}`);
+  console.log('Heuristic: new week is detected when previous range is fully filled');
+  console.log(`New week detected: ${hasNewWeek ? 'yes' : 'no'}`);
 }

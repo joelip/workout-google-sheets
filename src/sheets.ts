@@ -13,6 +13,9 @@ export interface SheetCellData {
   hasFill: boolean;
 }
 
+export type SheetCellValue = string | number | boolean;
+export type SheetValues = SheetCellValue[][];
+
 function isWhiteColor(color?: sheets_v4.Schema$Color | null): boolean {
   if (!color) {
     return false;
@@ -107,23 +110,23 @@ export class GoogleSheetsClient {
     }
   }
 
-  async getCellRange(spreadsheetId: string, range: string): Promise<any[][]> {
+  async getCellRange(spreadsheetId: string, range: string): Promise<SheetValues> {
     const responseData = await this.fetchCellRange(spreadsheetId, range);
-    return responseData.values || [];
+    return (responseData.values as SheetValues | undefined) || [];
   }
 
   async getCellRangeResponseData(spreadsheetId: string, range: string): Promise<sheets_v4.Schema$ValueRange> {
     return this.fetchCellRange(spreadsheetId, range);
   }
 
-  async getSheetMetadata(spreadsheetId: string): Promise<any> {
+  async getSheetMetadata(spreadsheetId: string): Promise<sheets_v4.Schema$Spreadsheet> {
     try {
       const response = await this.sheets.spreadsheets.get({
         spreadsheetId,
         fields: 'properties,sheets.properties',
       });
 
-      return response.data;
+      return response.data as sheets_v4.Schema$Spreadsheet;
     } catch (error) {
       throw new Error(`Error getting sheet metadata: ${error}`);
     }

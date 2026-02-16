@@ -1,7 +1,27 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
+import { CommandError, formatUnknownError } from './command-runtime';
 
 const program = new Command();
+
+function withCommandErrorHandling<TOptions>(
+  handler: (options: TOptions) => Promise<void>
+): (options: TOptions) => Promise<void> {
+  return async (options: TOptions): Promise<void> => {
+    try {
+      await handler(options);
+    } catch (error) {
+      if (error instanceof CommandError) {
+        console.error(error.message);
+        process.exitCode = error.exitCode;
+        return;
+      }
+
+      console.error(`Error: ${formatUnknownError(error)}`);
+      process.exitCode = 1;
+    }
+  };
+}
 
 program
   .name('wgs')
@@ -16,10 +36,10 @@ program
   .option('--cell-range <range>', 'Cell range to extract (e.g., B2:E5)')
   .option('--dry-run', 'Output parsed data to file instead of creating Notion page')
   .option('--dump-google-response', 'Dump Google Sheets API response body to file')
-  .action(async (options) => {
+  .action(withCommandErrorHandling(async (options) => {
     const { runCreateWeek } = await import('./commands/create-week.js');
     await runCreateWeek(options);
-  });
+  }));
 
 program
   .command('check-for-new-week')
@@ -29,10 +49,10 @@ program
   .option('--latest-range <range>', 'Range for latest week check (default: B2:E2)')
   .option('--previous-range <range>', 'Range for previous week validation (default: B3:E3)')
   .option('--json', 'Output machine-readable JSON')
-  .action(async (options) => {
+  .action(withCommandErrorHandling(async (options) => {
     const { runCheckForNewWeek } = await import('./commands/check-for-new-week.js');
     await runCheckForNewWeek(options);
-  });
+  }));
 
 program
   .command('create-day')
@@ -43,10 +63,10 @@ program
   .option('--session-cell <cell>', 'Single cell reference (e.g., B2)')
   .option('--dry-run', 'Skip Notion page creation (use with --output to preview)')
   .option('--output <format>', 'Output format: text (console) or json (file)')
-  .action(async (options) => {
+  .action(withCommandErrorHandling(async (options) => {
     const { runCreateDay } = await import('./commands/create-day.js');
     await runCreateDay(options);
-  });
+  }));
 
 program
   .command('post-workout')
@@ -57,9 +77,9 @@ program
   .option('--sheet-title <title>', 'Google Sheets document title')
   .option('--text', 'Text mode - output content without posting to sheets')
   .option('--sheets-chunked', 'Split text-mode console output into Sheets-safe chunks (<= 2048 chars)')
-  .action(async (options) => {
+  .action(withCommandErrorHandling(async (options) => {
     const { runPostWorkout } = await import('./commands/post-workout.js');
     await runPostWorkout(options);
-  });
+  }));
 
-program.parse();
+await program.parseAsync();
