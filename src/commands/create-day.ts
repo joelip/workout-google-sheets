@@ -129,5 +129,7 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
   console.log(`Creating Notion page: ${pageTitle}`);
 
   const pageId = await notionClient.createDayWorkoutPage(pageTitle, session);
+  const notionUrl = `https://notion.so/${pageId.replace(/-/g, '')}`;
   console.log(`✅ Successfully created Notion page: ${pageId}`);
+  console.log(`Notion URL: ${notionUrl}`);
 }
