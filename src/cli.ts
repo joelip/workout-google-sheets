@@ -71,7 +71,7 @@ program
 program
   .command('post-workout')
   .description('Post workout content from Notion page to Google Sheets as comments')
-  .option('--session-cell <cell>', 'Cell reference (e.g., B2)')
+  .option('--session-cell <cell>', 'Cell reference (required unless --text or --sheets-chunked)')
   .option('--notion-page <title>', 'Title of the nested Notion page')
   .option('--sheet-owner <email>', 'Google Sheets owner email')
   .option('--sheet-title <title>', 'Google Sheets document title')

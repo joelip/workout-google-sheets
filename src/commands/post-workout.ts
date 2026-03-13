@@ -39,9 +39,75 @@ interface PostWorkoutOptions {
 
 type BlockWithDepth = BlockObjectResponse & { depth: number };
 
+interface PostWorkoutDefaults {
+  sheetOwner?: string;
+  sheetTitle?: string;
+}
+
+type ResolvedPostWorkoutOptions =
+  | {
+    sessionCell?: string;
+    notionPageTitle: string;
+    sheetOwner?: string;
+    sheetTitle?: string;
+    textMode: true;
+  }
+  | {
+    sessionCell: string;
+    notionPageTitle: string;
+    sheetOwner: string;
+    sheetTitle: string;
+    textMode: false;
+  };
+
 async function loadConfig(): Promise<Config> {
   const configContent = await fs.readFile('config.json', 'utf8');
   return JSON.parse(configContent);
+}
+
+export function resolvePostWorkoutOptions(
+  options: PostWorkoutOptions,
+  defaults?: PostWorkoutDefaults
+): ResolvedPostWorkoutOptions {
+  const textMode = Boolean(options.text || options.sheetsChunked);
+  const sessionCell = options.sessionCell;
+  const sheetOwner = options.sheetOwner || defaults?.sheetOwner;
+  const sheetTitle = options.sheetTitle || defaults?.sheetTitle;
+  const notionPageTitle = options.notionPage;
+
+  if (!notionPageTitle || (!textMode && (!sheetOwner || !sheetTitle || !sessionCell))) {
+    fail(
+      'Missing required arguments. Please provide:\n'
+      + `${textMode ? '' : '  --session-cell <cell>     Cell reference (e.g., B2)\n'}`
+      + '  --notion-page <title>     Title of nested Notion page\n'
+      + `${textMode ? '' : '  --sheet-owner <email>     Google Sheets owner email\n'}`
+      + `${textMode ? '' : '  --sheet-title <title>     Google Sheets document title\n\n'}`
+      + `${textMode ? '' : 'Note: sheet-owner and sheet-title can be set as defaults in config.json\n'}`
+      + 'Note: --session-cell is optional when --text or --sheets-chunked is provided'
+    );
+  }
+
+  if (textMode) {
+    return {
+      sessionCell,
+      notionPageTitle,
+      sheetOwner,
+      sheetTitle,
+      textMode: true,
+    };
+  }
+
+  const requiredSessionCell = sessionCell || fail('Missing --session-cell <cell> argument.');
+  const requiredSheetOwner = sheetOwner || fail('Missing --sheet-owner <email> argument.');
+  const requiredSheetTitle = sheetTitle || fail('Missing --sheet-title <title> argument.');
+
+  return {
+    sessionCell: requiredSessionCell,
+    notionPageTitle,
+    sheetOwner: requiredSheetOwner,
+    sheetTitle: requiredSheetTitle,
+    textMode: false,
+  };
 }
 
 function getFirstPlainText(richText?: RichTextItemResponse[]): string | null {
@@ -302,27 +368,14 @@ class ExtendedGoogleSheetsClient extends GoogleSheetsClient {
 }
 
 export async function runPostWorkout(options: PostWorkoutOptions): Promise<void> {
-  const textMode = Boolean(options.text || options.sheetsChunked);
-  const cellId = options.sessionCell;
-  const requiresSessionCell = !textMode;
-
   const config = await loadConfig();
-
-  const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
-  const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
-  const notionPageTitle = options.notionPage;
-
-  if (!sheetOwner || !sheetTitle || !notionPageTitle || (requiresSessionCell && !cellId)) {
-    fail(
-      'Missing required arguments. Please provide:\n'
-      + `${requiresSessionCell ? '  --session-cell <cell>     Cell reference (e.g., B2)\n' : ''}`
-      + '  --notion-page <title>     Title of nested Notion page\n'
-      + '  --sheet-owner <email>     Google Sheets owner email\n'
-      + '  --sheet-title <title>     Google Sheets document title\n\n'
-      + 'Note: sheet-owner and sheet-title can be set as defaults in config.json\n'
-      + 'Note: --session-cell is optional when --text or --sheets-chunked is provided'
-    );
-  }
+  const {
+    sessionCell,
+    notionPageTitle,
+    sheetOwner,
+    sheetTitle,
+    textMode,
+  } = resolvePostWorkoutOptions(options, config.defaults);
 
   console.log('Connecting to Notion...');
   const postWorkoutClient = new PostWorkoutClient(config);
@@ -384,9 +437,8 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
 
   const combinedComment = renderWorkoutTextOutput(workoutContent);
 
-  const targetCellId = cellId || fail('Missing --session-cell <cell> argument.');
-  console.log(`Adding workout comment to cell ${targetCellId}...`);
-  await sheetsClient.addCommentToCell(sheetInfo.id, targetCellId, combinedComment);
+  console.log(`Adding workout comment to cell ${sessionCell}...`);
+  await sheetsClient.addCommentToCell(sheetInfo.id, sessionCell, combinedComment);
 
   console.log('✅ Successfully posted workout content as comments');
 }
