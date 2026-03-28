@@ -3,6 +3,13 @@
     "token": "secret_1234567890abcdef",
     "parentPageId": "12345678-1234-1234-1234-123456789abc"
   },
+  "r2": {
+    "accountId": "1234567890abcdef1234567890abcdef",
+    "accessKeyId": "your-r2-access-key-id",
+    "secretAccessKey": "your-r2-secret-access-key",
+    "bucket": "workout-images",
+    "publicBaseUrl": "https://images.example.com"
+  },
   "defaults": {
     "sheetOwner": "your-email@gmail.com",
     "sheetTitle": "Your Workout Sheet",

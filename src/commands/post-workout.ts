@@ -5,9 +5,16 @@ import {
   renderWorkoutTextOutput,
   splitWorkoutTextForSheets,
 } from '../post-workout-chunking';
+import {
+  renderBlocksToText,
+  splitContentByWorkoutSections,
+} from '../post-workout-rendering';
+import type { BlockWithDepth } from '../post-workout-rendering';
+import { R2ImageUploader } from '../r2';
+import type { R2Config } from '../r2';
 import fs from 'fs/promises';
 import { Client, isFullBlock } from '@notionhq/client';
-import type { BlockObjectResponse, RichTextItemResponse } from '@notionhq/client';
+import type { BlockObjectResponse } from '@notionhq/client';
 import { OAuth2Client } from 'google-auth-library';
 import { google, sheets_v4 } from 'googleapis';
 
@@ -16,16 +23,11 @@ interface Config {
     token: string;
     parentPageId: string;
   };
+  r2?: R2Config;
   defaults?: {
     sheetOwner?: string;
     sheetTitle?: string;
   };
-}
-
-interface WorkoutContent {
-  overallNotes: string;
-  lowerBody: string;
-  upperBody: string;
 }
 
 interface PostWorkoutOptions {
@@ -36,8 +38,6 @@ interface PostWorkoutOptions {
   text?: boolean;
   sheetsChunked?: boolean;
 }
-
-type BlockWithDepth = BlockObjectResponse & { depth: number };
 
 interface PostWorkoutDefaults {
   sheetOwner?: string;
@@ -108,11 +108,6 @@ export function resolvePostWorkoutOptions(
     sheetTitle: requiredSheetTitle,
     textMode: false,
   };
-}
-
-function getFirstPlainText(richText?: RichTextItemResponse[]): string | null {
-  const first = richText?.[0];
-  return first?.plain_text ?? null;
 }
 
 class PostWorkoutClient {
@@ -201,111 +196,6 @@ class PostWorkoutClient {
 
     return descendants;
   }
-
-  convertBlocksToMarkdown(blocks: BlockWithDepth[]): string {
-    const markdownLines: string[] = [];
-
-    for (const block of blocks) {
-      if (block.type === 'embed') {
-        continue;
-      }
-
-      const indent = '  '.repeat(block.depth);
-
-      switch (block.type) {
-        case 'heading_1': {
-          const text = getFirstPlainText(block.heading_1.rich_text);
-          if (text) {
-            markdownLines.push(`# ${text}`);
-          }
-          break;
-        }
-        case 'heading_2': {
-          const text = getFirstPlainText(block.heading_2.rich_text);
-          if (text) {
-            markdownLines.push(`## ${text}`);
-          }
-          break;
-        }
-        case 'heading_3': {
-          const text = getFirstPlainText(block.heading_3.rich_text);
-          if (text) {
-            markdownLines.push(`### ${text}`);
-          }
-          break;
-        }
-        case 'paragraph': {
-          const text = getFirstPlainText(block.paragraph.rich_text);
-          markdownLines.push(text ? `${indent}${text}` : '');
-          break;
-        }
-        case 'bulleted_list_item': {
-          const text = getFirstPlainText(block.bulleted_list_item.rich_text);
-          if (text) {
-            markdownLines.push(`${indent}- ${text}`);
-          }
-          break;
-        }
-        case 'numbered_list_item': {
-          const text = getFirstPlainText(block.numbered_list_item.rich_text);
-          if (text) {
-            markdownLines.push(`${indent}1. ${text}`);
-          }
-          break;
-        }
-      }
-    }
-
-    return markdownLines.join('\n');
-  }
-
-  splitContentByWorkoutSections(markdownContent: string): WorkoutContent {
-    const lines = markdownContent.split('\n');
-    const overallLines: string[] = [];
-    const lowerBodyLines: string[] = [];
-    const upperBodyLines: string[] = [];
-    let currentSection: 'none' | 'overall' | 'lower' | 'upper' = 'none';
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-
-      if (trimmedLine.match(/^#{1,6}\s*overall/i) || trimmedLine.match(/^overall\b/i)) {
-        currentSection = 'overall';
-        if (overallLines.length === 0) {
-          overallLines.push('### Overall Notes:');
-        }
-        continue;
-      }
-
-      if (/^###\s*lower body\b/i.test(trimmedLine)) {
-        currentSection = 'lower';
-        lowerBodyLines.push('### Lower Body:');
-        continue;
-      } else if (/^###\s*upper body\b/i.test(trimmedLine)) {
-        currentSection = 'upper';
-        upperBodyLines.push('### Upper Body:');
-        continue;
-      }
-
-      switch (currentSection) {
-        case 'overall':
-          overallLines.push(line);
-          break;
-        case 'lower':
-          lowerBodyLines.push(line);
-          break;
-        case 'upper':
-          upperBodyLines.push(line);
-          break;
-      }
-    }
-
-    return {
-      overallNotes: overallLines.join('\n').trim(),
-      lowerBody: lowerBodyLines.join('\n').trim(),
-      upperBody: upperBodyLines.join('\n').trim(),
-    };
-  }
 }
 
 class ExtendedGoogleSheetsClient extends GoogleSheetsClient {
@@ -391,15 +281,19 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
   console.log('Extracting page content...');
   const blocks = await postWorkoutClient.extractPageContent(pageId);
 
-  console.log('Converting blocks to markdown...');
-  const markdown = postWorkoutClient.convertBlocksToMarkdown(blocks);
+  console.log('Rendering blocks...');
+  const imageUploader = config.r2 ? new R2ImageUploader(config.r2) : undefined;
+  const renderedText = await renderBlocksToText(blocks, {
+    pageId,
+    imageUploader,
+  });
 
   if (options.sheetsChunked) {
     console.log('Splitting content by workout sections for Sheets chunking...');
   } else {
     console.log('Preparing structured workout content...');
   }
-  const workoutContent = postWorkoutClient.splitContentByWorkoutSections(markdown);
+  const workoutContent = splitContentByWorkoutSections(renderedText);
 
   if (textMode) {
     const textOutput = renderWorkoutTextOutput(workoutContent);

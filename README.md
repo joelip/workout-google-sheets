@@ -22,7 +22,9 @@ bun install
    - Share your parent page with the integration
    - Copy `config.example.json` to `config.json` and add your token and parent page ID
 
-4. Run the CLI:
+4. Optional for `post-workout` image rehosting: set up a public Cloudflare R2 bucket behind a custom domain and add the `r2` credentials/settings to `config.json`
+
+5. Run the CLI:
 ```bash
 ./wgs --help
 ```
@@ -74,6 +76,8 @@ Post workout notes from a Notion page back to Google Sheets as cell comments:
 ./wgs post-workout --notion-page "1/27/2026" --text
 ./wgs post-workout --notion-page "1/27/2026" --text --sheets-chunked  # Split output into <= 2048-char chunks
 ```
+
+If the page contains Notion-hosted image blocks and `r2` is configured, `post-workout` uploads those images to your public R2 bucket and inlines `Image: <public-url>` lines in the generated text.
 
 ### Global Options
 The `--sheet-owner` and `--sheet-title` options can be set as defaults in `config.json` to avoid repeating them.

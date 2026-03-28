@@ -16,8 +16,8 @@ describe('post-workout sheets chunking', () => {
     const chunks = splitWorkoutTextForSheets(text);
 
     expect(chunks).toHaveLength(3);
-    expect(chunks[1].startsWith('Plyo Progression:')).toBe(true);
-    expect(chunks[2].startsWith('### Upper Body:')).toBe(true);
+    expect(chunks[1]?.startsWith('Plyo Progression:')).toBe(true);
+    expect(chunks[2]?.startsWith('### Upper Body:')).toBe(true);
     expect(chunks.every((chunk) => chunk.length <= SHEETS_CHUNK_CHAR_LIMIT)).toBe(true);
   });
 
@@ -34,7 +34,7 @@ describe('post-workout sheets chunking', () => {
     const chunks = splitWorkoutTextForSheets(text, 3000);
 
     expect(chunks).toHaveLength(2);
-    expect(chunks[1].startsWith('### Upper Body:')).toBe(true);
+    expect(chunks[1]?.startsWith('### Upper Body:')).toBe(true);
     expect(chunks.every((chunk) => chunk.length <= 3000)).toBe(true);
   });
 
