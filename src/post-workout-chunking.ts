@@ -1,4 +1,7 @@
-import { removePlusOnlyMarkerLines } from './text-cleaning';
+import {
+  addSpacingBeforeLetteredSections,
+  removePlusOnlyMarkerLines,
+} from './text-cleaning';
 
 export interface WorkoutTextSections {
   overallNotes?: string;
@@ -15,7 +18,7 @@ export function renderWorkoutTextOutput(sections: WorkoutTextSections): string {
     .filter((section): section is string => Boolean(section && section.trim().length > 0))
     .join('\n\n');
 
-  return removePlusOnlyMarkerLines(combined).trim();
+  return addSpacingBeforeLetteredSections(removePlusOnlyMarkerLines(combined)).trim();
 }
 
 export function splitWorkoutTextForSheets(
@@ -36,6 +39,13 @@ export function splitWorkoutTextForSheets(
       : [text];
 
   return baseChunks.flatMap((chunk) => splitChunkByPreferredBoundaries(chunk, maxChars));
+}
+
+export function renderSheetsChunkedTextOutput(
+  text: string,
+  maxChars: number = SHEETS_CHUNK_CHAR_LIMIT
+): string {
+  return splitWorkoutTextForSheets(text, maxChars).join('\n\n');
 }
 
 function findUpperBodyStartIndex(text: string): number {

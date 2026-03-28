@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'fs';
 import {
+  renderSheetsChunkedTextOutput,
   SHEETS_CHUNK_CHAR_LIMIT,
   renderWorkoutTextOutput,
   splitWorkoutTextForSheets,
@@ -57,5 +58,31 @@ describe('post-workout sheets chunking', () => {
     expect(output.includes('\n+\n')).toBe(false);
     expect(output.includes('A. Squat')).toBe(true);
     expect(output.includes('B. Pull-up')).toBe(true);
+  });
+
+  test('adds blank lines before lettered section headers', () => {
+    const output = renderWorkoutTextOutput({
+      lowerBody: [
+        '### Lower Body:',
+        'A1. Elevated Pigeon Stretch',
+        '- 30s each side',
+        'A2. Couch Stretch',
+        '- Felt good.',
+        'B. Front Squat',
+      ].join('\n'),
+    });
+
+    expect(output).toContain('### Lower Body:\n\nA1. Elevated Pigeon Stretch');
+    expect(output).toContain('- 30s each side\n\nA2. Couch Stretch');
+    expect(output).toContain('- Felt good.\n\nB. Front Squat');
+  });
+
+  test('renders chunked output without chunk headings', () => {
+    const text = readFixture('post-workout-3-chunk-example.txt');
+    const chunks = splitWorkoutTextForSheets(text);
+    const output = renderSheetsChunkedTextOutput(text);
+
+    expect(output.includes('--- Chunk')).toBe(false);
+    expect(output).toBe(chunks.join('\n\n'));
   });
 });
