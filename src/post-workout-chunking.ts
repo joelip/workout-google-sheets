@@ -43,10 +43,12 @@ function findUpperBodyStartIndex(text: string): number {
   let index = 0;
 
   for (let i = 0; i < lines.length; i++) {
-    if (UPPER_BODY_HEADER_PATTERN.test(lines[i].trim())) {
+    const line = lines[i] ?? '';
+
+    if (UPPER_BODY_HEADER_PATTERN.test(line.trim())) {
       return index;
     }
-    index += lines[i].length + 1;
+    index += line.length + 1;
   }
 
   return -1;
@@ -91,12 +93,13 @@ function findMinorSectionSplitIndex(text: string, maxChars: number): number {
   let bestIndex = -1;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const currentLine = lines[i] ?? '';
+    const line = currentLine.trim();
     if (i > 0 && index <= maxChars && MINOR_SECTION_PATTERN.test(line)) {
       bestIndex = index;
     }
 
-    index += lines[i].length + 1;
+    index += currentLine.length + 1;
   }
 
   return bestIndex;
@@ -108,11 +111,12 @@ function findLineStartSplitIndex(text: string, maxChars: number): number {
   let bestIndex = -1;
 
   for (let i = 0; i < lines.length; i++) {
+    const currentLine = lines[i] ?? '';
     if (i > 0 && index <= maxChars) {
       bestIndex = index;
     }
 
-    index += lines[i].length + 1;
+    index += currentLine.length + 1;
   }
 
   return bestIndex;
@@ -120,7 +124,8 @@ function findLineStartSplitIndex(text: string, maxChars: number): number {
 
 function findWhitespaceSplitIndex(text: string, maxChars: number): number {
   for (let i = maxChars; i > 0; i--) {
-    if (/\s/.test(text[i])) {
+    const character = text[i];
+    if (character !== undefined && /\s/.test(character)) {
       return i;
     }
   }

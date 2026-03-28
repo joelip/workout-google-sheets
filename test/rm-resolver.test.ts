@@ -1,5 +1,6 @@
 import { test, expect, describe } from 'bun:test';
-import { RMResolver, RMConfig } from '../src/rm-resolver';
+import { RMResolver } from '../src/rm-resolver';
+import type { RMConfig } from '../src/rm-resolver';
 
 describe('RMResolver', () => {
   const testConfig: RMConfig = {
