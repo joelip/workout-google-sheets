@@ -9,13 +9,16 @@ export interface WorkoutTextSections {
 export const SHEETS_CHUNK_CHAR_LIMIT = 2048;
 const UPPER_BODY_HEADER_PATTERN = /^###\s*upper body:\s*$/i;
 const MINOR_SECTION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression|conditioning):?$/i;
+const TOP_LEVEL_SECTION_HEADER_PATTERN = /^###\s*(?:overall notes|lower body|upper body):\s*$/i;
+const EXERCISE_HEADER_PATTERN = /^[A-Z](?:\d+)?\.\s+/;
 
 export function renderWorkoutTextOutput(sections: WorkoutTextSections): string {
   const combined = [sections.overallNotes, sections.lowerBody, sections.upperBody]
     .filter((section): section is string => Boolean(section && section.trim().length > 0))
+    .map((section) => formatWorkoutSection(section))
     .join('\n\n');
 
-  return removePlusOnlyMarkerLines(combined).trim();
+  return combined.trim();
 }
 
 export function splitWorkoutTextForSheets(
@@ -131,4 +134,37 @@ function findWhitespaceSplitIndex(text: string, maxChars: number): number {
   }
 
   return -1;
+}
+
+function formatWorkoutSection(section: string): string {
+  const cleanedSection = removePlusOnlyMarkerLines(section).trim();
+
+  if (!cleanedSection) {
+    return '';
+  }
+
+  const lines = cleanedSection.split('\n');
+  const formattedLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    const previousLine = formattedLines[formattedLines.length - 1]?.trim() ?? '';
+
+    if (
+      shouldInsertExerciseSpacing(trimmedLine)
+      && formattedLines.length > 0
+      && previousLine.length > 0
+      && !TOP_LEVEL_SECTION_HEADER_PATTERN.test(previousLine)
+    ) {
+      formattedLines.push('');
+    }
+
+    formattedLines.push(line);
+  }
+
+  return formattedLines.join('\n');
+}
+
+function shouldInsertExerciseSpacing(line: string): boolean {
+  return EXERCISE_HEADER_PATTERN.test(line) || MINOR_SECTION_PATTERN.test(line);
 }

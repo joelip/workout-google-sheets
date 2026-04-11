@@ -58,4 +58,24 @@ describe('post-workout sheets chunking', () => {
     expect(output.includes('A. Squat')).toBe(true);
     expect(output.includes('B. Pull-up')).toBe(true);
   });
+
+  test('adds a blank line before top-level exercise headers inside a workout section', () => {
+    const output = renderWorkoutTextOutput({
+      lowerBody: [
+        '### Lower Body:',
+        'A1. Kickstand Wall Sit x 2 sets',
+        '- 30s holds',
+        'A2. Single Leg Hamstring Bridge x 2 sets',
+        '- 15 reps',
+        'Conditioning:',
+        'Bike x 10 minutes',
+        'B. Rear Foot Elevated Split Squat x 4 sets',
+        '- 8 reps per side',
+      ].join('\n'),
+    });
+
+    expect(output).toContain('A1. Kickstand Wall Sit x 2 sets\n- 30s holds\n\nA2. Single Leg Hamstring Bridge x 2 sets');
+    expect(output).toContain('- 15 reps\n\nConditioning:\nBike x 10 minutes\n\nB. Rear Foot Elevated Split Squat x 4 sets');
+    expect(output).not.toContain('### Lower Body:\n\nA1.');
+  });
 });
