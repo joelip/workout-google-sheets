@@ -141,6 +141,48 @@ describe('post-workout rendering', () => {
       'https://images.example.com/notion-images/page-1/lower-image'
     );
   });
+
+  test('recognizes workout section headers rendered at any heading level', () => {
+    const textOutput = renderWorkoutTextOutput(splitContentByWorkoutSections([
+      '## Lower Body',
+      'A. Split Squat: 3 x 8 reps',
+      '## Upper Body',
+      'A. Pull-up: 5 x 3 reps',
+    ].join('\n')));
+
+    expect(textOutput).toContain('### Lower Body:\nA. Split Squat: 3 x 8 reps');
+    expect(textOutput).toContain('### Upper Body:\nA. Pull-up: 5 x 3 reps');
+  });
+
+  test('preserves workout content before an upper body header without inventing a lower body header', () => {
+    const textOutput = renderWorkoutTextOutput(splitContentByWorkoutSections([
+      'A. Split Squat: 3 x 8 reps',
+      '- Used 35lb dumbbells',
+      '### Upper Body:',
+      'A. Pull-up: 5 x 3 reps',
+    ].join('\n')));
+
+    expect(textOutput).toStartWith('A. Split Squat: 3 x 8 reps\n- Used 35lb dumbbells');
+    expect(textOutput).not.toContain('### Lower Body:');
+    expect(textOutput).toContain('### Upper Body:\nA. Pull-up: 5 x 3 reps');
+  });
+
+  test('preserves unheaded workout content when there are no section headers', () => {
+    const textOutput = renderWorkoutTextOutput(splitContentByWorkoutSections([
+      'Day 2:',
+      'Warm-up:',
+      'A. 3 Sets:',
+      '- 3 Standing Hip CARS per side',
+    ].join('\n')));
+
+    expect(textOutput).toBe([
+      'Day 2:',
+      'Warm-up:',
+      '',
+      'A. 3 Sets:',
+      '- 3 Standing Hip CARS per side',
+    ].join('\n'));
+  });
 });
 
 function paragraphBlock(text: string): BlockWithDepth {

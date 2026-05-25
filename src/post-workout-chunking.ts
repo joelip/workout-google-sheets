@@ -8,7 +8,8 @@ export interface WorkoutTextSections {
 
 export const SHEETS_CHUNK_CHAR_LIMIT = 2048;
 const UPPER_BODY_HEADER_PATTERN = /^###\s*upper body:\s*$/i;
-const MINOR_SECTION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression|conditioning):?$/i;
+const MINOR_SECTION_PATTERN =
+  /^(?:#{1,6}\s*)?(?:plyo progression|deep tier plyo|run\/walk progression|conditioning|mixed conditioning):?\s*$/i;
 const TOP_LEVEL_SECTION_HEADER_PATTERN = /^###\s*(?:overall notes|lower body|upper body):\s*$/i;
 const EXERCISE_HEADER_PATTERN = /^[A-Z](?:\d+)?\.\s+/;
 

@@ -91,12 +91,13 @@ export function splitContentByWorkoutSections(markdownContent: string): WorkoutC
   const overallLines: string[] = [];
   const lowerBodyLines: string[] = [];
   const upperBodyLines: string[] = [];
+  const pendingWorkoutLines: string[] = [];
   let currentSection: 'none' | 'overall' | 'lower' | 'upper' = 'none';
 
   for (const line of lines) {
     const trimmedLine = line.trim();
 
-    if (trimmedLine.match(/^#{1,6}\s*overall/i) || trimmedLine.match(/^overall\b/i)) {
+    if (isWorkoutSectionHeader(trimmedLine, 'overall')) {
       currentSection = 'overall';
       if (overallLines.length === 0) {
         overallLines.push('### Overall Notes:');
@@ -104,12 +105,16 @@ export function splitContentByWorkoutSections(markdownContent: string): WorkoutC
       continue;
     }
 
-    if (/^###\s*lower body\b/i.test(trimmedLine)) {
+    if (isWorkoutSectionHeader(trimmedLine, 'lower body')) {
       currentSection = 'lower';
-      lowerBodyLines.push('### Lower Body:');
+      if (lowerBodyLines.length === 0) {
+        lowerBodyLines.push('### Lower Body:');
+      }
+      appendPendingWorkoutLines(lowerBodyLines, pendingWorkoutLines);
       continue;
-    } else if (/^###\s*upper body\b/i.test(trimmedLine)) {
+    } else if (isWorkoutSectionHeader(trimmedLine, 'upper body')) {
       currentSection = 'upper';
+      appendPendingWorkoutLines(lowerBodyLines, pendingWorkoutLines);
       upperBodyLines.push('### Upper Body:');
       continue;
     }
@@ -124,7 +129,16 @@ export function splitContentByWorkoutSections(markdownContent: string): WorkoutC
       case 'upper':
         upperBodyLines.push(line);
         break;
+      case 'none':
+        if (trimmedLine.length > 0 || pendingWorkoutLines.length > 0) {
+          pendingWorkoutLines.push(line);
+        }
+        break;
     }
+  }
+
+  if (currentSection === 'none') {
+    appendPendingWorkoutLines(lowerBodyLines, pendingWorkoutLines);
   }
 
   return {
@@ -132,6 +146,27 @@ export function splitContentByWorkoutSections(markdownContent: string): WorkoutC
     lowerBody: lowerBodyLines.join('\n').trim(),
     upperBody: upperBodyLines.join('\n').trim(),
   };
+}
+
+function isWorkoutSectionHeader(
+  line: string,
+  section: 'overall' | 'lower body' | 'upper body'
+): boolean {
+  const escapedSection = section.replace(' ', '\\s+');
+  return new RegExp(`^(?:#{1,6}\\s*)?${escapedSection}(?:\\s+notes?)?:?\\s*$`, 'i')
+    .test(line);
+}
+
+function appendPendingWorkoutLines(
+  sectionLines: string[],
+  pendingWorkoutLines: string[]
+): void {
+  if (pendingWorkoutLines.length === 0) {
+    return;
+  }
+
+  sectionLines.push(...pendingWorkoutLines);
+  pendingWorkoutLines.length = 0;
 }
 
 async function renderImageBlock(

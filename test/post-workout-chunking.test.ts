@@ -78,4 +78,34 @@ describe('post-workout sheets chunking', () => {
     expect(output).toContain('- 15 reps\n\nConditioning:\nBike x 10 minutes\n\nB. Rear Foot Elevated Split Squat x 4 sets');
     expect(output).not.toContain('### Lower Body:\n\nA1.');
   });
+
+  test('adds a blank line before mixed conditioning headings', () => {
+    const output = renderWorkoutTextOutput({
+      lowerBody: [
+        '### Lower Body:',
+        'E3. Single Arm DB Oblique Crunch x 10 reps x 3 sets',
+        '- All sets at 60lb',
+        'Mixed Conditioning:',
+        'A. 3 Sets:',
+        '- EMOM x 12',
+      ].join('\n'),
+    });
+
+    expect(output).toContain('- All sets at 60lb\n\nMixed Conditioning:\n\nA. 3 Sets:');
+  });
+
+  test('prefers splitting at mixed conditioning headings when chunking for sheets', () => {
+    const text = [
+      '### Lower Body:',
+      `A. ${'x'.repeat(120)}`,
+      `- ${'y'.repeat(120)}`,
+      'Mixed Conditioning:',
+      `B. ${'z'.repeat(120)}`,
+    ].join('\n');
+    const chunks = splitWorkoutTextForSheets(text, 320);
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks[1]?.startsWith('Mixed Conditioning:')).toBe(true);
+    expect(chunks.every((chunk) => chunk.length <= 320)).toBe(true);
+  });
 });
