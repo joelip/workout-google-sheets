@@ -77,6 +77,7 @@ program
   .option('--sheet-title <title>', 'Google Sheets document title')
   .option('--text', 'Text mode - output content without posting to sheets')
   .option('--sheets-chunked', 'Split text-mode console output into Sheets-safe chunks (<= 2048 chars)')
+  .option('--copy', 'Copy each Sheets chunk to the macOS clipboard history (requires --sheets-chunked)')
   .action(withCommandErrorHandling(async (options) => {
     const { runPostWorkout } = await import('./commands/post-workout.js');
     await runPostWorkout(options);

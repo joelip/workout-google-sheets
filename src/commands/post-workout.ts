@@ -17,6 +17,7 @@ import { Client, isFullBlock } from '@notionhq/client';
 import type { BlockObjectResponse } from '@notionhq/client';
 import { OAuth2Client } from 'google-auth-library';
 import { google, sheets_v4 } from 'googleapis';
+import { spawn } from 'child_process';
 
 interface Config {
   notion: {
@@ -37,12 +38,15 @@ interface PostWorkoutOptions {
   sheetTitle?: string;
   text?: boolean;
   sheetsChunked?: boolean;
+  copy?: boolean;
 }
 
 interface PostWorkoutDefaults {
   sheetOwner?: string;
   sheetTitle?: string;
 }
+
+const CLIPBOARD_COPY_DELAY_MS = 750;
 
 type ResolvedPostWorkoutOptions =
   | {
@@ -51,6 +55,7 @@ type ResolvedPostWorkoutOptions =
     sheetOwner?: string;
     sheetTitle?: string;
     textMode: true;
+    copyChunks: boolean;
   }
   | {
     sessionCell: string;
@@ -58,6 +63,7 @@ type ResolvedPostWorkoutOptions =
     sheetOwner: string;
     sheetTitle: string;
     textMode: false;
+    copyChunks: false;
   };
 
 async function loadConfig(): Promise<Config> {
@@ -74,6 +80,11 @@ export function resolvePostWorkoutOptions(
   const sheetOwner = options.sheetOwner || defaults?.sheetOwner;
   const sheetTitle = options.sheetTitle || defaults?.sheetTitle;
   const notionPageTitle = options.notionPage;
+  const copyChunks = Boolean(options.copy);
+
+  if (copyChunks && !options.sheetsChunked) {
+    fail('--copy can only be used with --sheets-chunked.');
+  }
 
   if (!notionPageTitle || (!textMode && (!sheetOwner || !sheetTitle || !sessionCell))) {
     fail(
@@ -94,6 +105,7 @@ export function resolvePostWorkoutOptions(
       sheetOwner,
       sheetTitle,
       textMode: true,
+      copyChunks,
     };
   }
 
@@ -107,6 +119,7 @@ export function resolvePostWorkoutOptions(
     sheetOwner: requiredSheetOwner,
     sheetTitle: requiredSheetTitle,
     textMode: false,
+    copyChunks: false,
   };
 }
 
@@ -265,6 +278,7 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
     sheetOwner,
     sheetTitle,
     textMode,
+    copyChunks,
   } = resolvePostWorkoutOptions(options, config.defaults);
 
   console.log('Connecting to Notion...');
@@ -300,13 +314,17 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
 
     if (options.sheetsChunked) {
       const chunks = splitWorkoutTextForSheets(textOutput);
-      chunks.forEach((chunk, index) => {
+      for (const [index, chunk] of chunks.entries()) {
         if (index > 0) {
           console.log('');
         }
         console.log(`--- Chunk ${index + 1}/${chunks.length} (${chunk.length} chars) ---`);
         console.log(chunk);
-      });
+      }
+      if (copyChunks) {
+        await copyChunksToClipboard(chunks);
+        console.log(`\nCopied ${chunks.length} chunk${chunks.length === 1 ? '' : 's'} to clipboard.`);
+      }
     } else if (textOutput) {
       console.log(`\n${textOutput}`);
     }
@@ -335,4 +353,42 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
   await sheetsClient.addCommentToCell(sheetInfo.id, sessionCell, combinedComment);
 
   console.log('✅ Successfully posted workout content as comments');
+}
+
+export async function copyChunksToClipboard(
+  chunks: string[],
+  copyText: (text: string) => Promise<void> = copyTextToClipboard,
+  wait: (milliseconds: number) => Promise<void> = delay
+): Promise<void> {
+  for (const [index, chunk] of chunks.entries()) {
+    await copyText(chunk);
+    if (index < chunks.length - 1) {
+      await wait(CLIPBOARD_COPY_DELAY_MS);
+    }
+  }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+async function copyTextToClipboard(text: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const process = spawn('pbcopy');
+
+    process.on('error', (error) => {
+      reject(new Error(`Unable to run pbcopy: ${error.message}`));
+    });
+    process.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`pbcopy exited with code ${code}.`));
+      }
+    });
+
+    process.stdin.end(text);
+  });
 }

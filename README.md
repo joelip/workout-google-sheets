@@ -75,6 +75,7 @@ Post workout notes from a Notion page back to Google Sheets as cell comments:
 ./wgs post-workout --session-cell B2 --notion-page "1/27/2026"
 ./wgs post-workout --notion-page "1/27/2026" --text
 ./wgs post-workout --notion-page "1/27/2026" --text --sheets-chunked  # Split output into <= 2048-char chunks
+./wgs post-workout --notion-page "1/27/2026" --sheets-chunked --copy  # Copy each raw chunk to clipboard history
 ```
 
 If the page contains Notion-hosted image blocks and `r2` is configured, `post-workout` uploads those images to your public R2 bucket and inlines `Image: <public-url>` lines in the generated text.
