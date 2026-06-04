@@ -94,6 +94,20 @@ describe('post-workout sheets chunking', () => {
     expect(output).toContain('- All sets at 60lb\n\nMixed Conditioning:\n\nA. 3 Sets:');
   });
 
+  test('adds a blank line before plyo headings', () => {
+    const output = renderWorkoutTextOutput({
+      lowerBody: [
+        '### Lower Body:',
+        'A. 2 Sets:',
+        '- 12 Single Calf Raise per side',
+        'Plyo:',
+        '- 10 pogo hops',
+      ].join('\n'),
+    });
+
+    expect(output).toContain('- 12 Single Calf Raise per side\n\nPlyo:\n- 10 pogo hops');
+  });
+
   test('prefers splitting at mixed conditioning headings when chunking for sheets', () => {
     const text = [
       '### Lower Body:',
@@ -106,6 +120,21 @@ describe('post-workout sheets chunking', () => {
 
     expect(chunks).toHaveLength(2);
     expect(chunks[1]?.startsWith('Mixed Conditioning:')).toBe(true);
+    expect(chunks.every((chunk) => chunk.length <= 320)).toBe(true);
+  });
+
+  test('prefers splitting at plyo headings when chunking for sheets', () => {
+    const text = [
+      '### Lower Body:',
+      `A. ${'x'.repeat(120)}`,
+      `- ${'y'.repeat(120)}`,
+      'Plyo:',
+      `B. ${'z'.repeat(120)}`,
+    ].join('\n');
+    const chunks = splitWorkoutTextForSheets(text, 320);
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks[1]?.startsWith('Plyo:')).toBe(true);
     expect(chunks.every((chunk) => chunk.length <= 320)).toBe(true);
   });
 });

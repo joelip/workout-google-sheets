@@ -22,4 +22,32 @@ describe('WorkoutParser cleanup', () => {
     expect(lines.includes('A. Squat')).toBe(true);
     expect(lines.includes('B. Lunge')).toBe(true);
   });
+
+  test('treats plyo as a standalone minor section heading', () => {
+    const session = WorkoutParser.parseSingleCell([
+      'A. 2 Sets:',
+      '- 12 Single Calf Raise per side',
+      'Plyo:',
+      '- 10 pogo hops',
+    ].join('\n'));
+
+    expect(session.sections).toEqual([
+      {
+        type: 'section',
+        header: 'A. 2 Sets:',
+        content: ['- 12 Single Calf Raise per side'],
+        youtubeLinks: [],
+      },
+      {
+        type: 'text',
+        content: ['Plyo:'],
+        youtubeLinks: [],
+      },
+      {
+        type: 'text',
+        content: ['- 10 pogo hops'],
+        youtubeLinks: [],
+      },
+    ]);
+  });
 });

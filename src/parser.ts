@@ -3,7 +3,7 @@ import { RMResolver, loadRMConfig } from './rm-resolver';
 import type { SheetValues } from './sheets';
 import { isPlusOnlyMarkerLine } from './text-cleaning';
 
-const MINOR_SECTION_PATTERN = /^(?:plyo progression|deep tier plyo|run\/walk progression|conditioning|mixed conditioning):?$/i;
+const MINOR_SECTION_PATTERN = /^(?:plyo|plyo progression|deep tier plyo|run\/walk progression|conditioning|mixed conditioning):?$/i;
 
 export class WorkoutParser {
   private static readonly SECTION_HEADER_PATTERN = /^[A-Z]\d*\./;
