@@ -69,6 +69,15 @@ Day mapping for `--day`:
 - `3` -> `D2`
 - `4` -> `E2`
 
+### Get Workout
+Get a workout page from Notion by date as markdown:
+```bash
+./wgs get-workout 2026-01-27
+./wgs get-workout 1/27/2026
+```
+
+The command looks for a nested Notion page with the normalized date title, such as `1/27/2026`, and prints standalone markdown to stdout.
+
 ### Post Workout
 Post workout notes from a Notion page back to Google Sheets as cell comments:
 ```bash

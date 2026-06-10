@@ -1,6 +1,7 @@
 import { GoogleSheetsAuth } from '../auth';
 import { GoogleSheetsClient } from '../sheets';
 import { NotionClient } from '../notion';
+import { formatWorkoutDatePageTitleFromDate } from '../notion-workout-pages';
 import { WorkoutParser } from '../parser';
 import { fail } from '../command-runtime';
 import fs from 'fs/promises';
@@ -35,13 +36,6 @@ const DAY_TO_CELL: Record<number, string> = {
 async function loadConfig(): Promise<Config> {
   const configContent = await fs.readFile('config.json', 'utf8');
   return JSON.parse(configContent);
-}
-
-function formatDateM_D_YYYY(date: Date): string {
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const year = date.getFullYear();
-  return `${month}/${day}/${year}`;
 }
 
 export async function runCreateDay(options: CreateDayOptions): Promise<void> {
@@ -125,7 +119,7 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
   const notionClient = await NotionClient.fromConfigFile();
 
   const today = new Date();
-  const pageTitle = formatDateM_D_YYYY(today);
+  const pageTitle = formatWorkoutDatePageTitleFromDate(today);
   console.log(`Creating Notion page: ${pageTitle}`);
 
   const pageId = await notionClient.createDayWorkoutPage(pageTitle, session);

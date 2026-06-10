@@ -4,12 +4,12 @@ import { CommandError, formatUnknownError } from './command-runtime';
 
 const program = new Command();
 
-function withCommandErrorHandling<TOptions>(
-  handler: (options: TOptions) => Promise<void>
-): (options: TOptions) => Promise<void> {
-  return async (options: TOptions): Promise<void> => {
+function withCommandErrorHandling<TArgs extends unknown[]>(
+  handler: (...args: TArgs) => Promise<void>
+): (...args: TArgs) => Promise<void> {
+  return async (...args: TArgs): Promise<void> => {
     try {
-      await handler(options);
+      await handler(...args);
     } catch (error) {
       if (error instanceof CommandError) {
         console.error(error.message);
@@ -66,6 +66,15 @@ program
   .action(withCommandErrorHandling(async (options) => {
     const { runCreateDay } = await import('./commands/create-day.js');
     await runCreateDay(options);
+  }));
+
+program
+  .command('get-workout')
+  .description('Get a Notion workout page by date as markdown')
+  .argument('<date>', 'Workout date (YYYY-MM-DD or M/D/YYYY)')
+  .action(withCommandErrorHandling(async (date: string) => {
+    const { runGetWorkout } = await import('./commands/get-workout.js');
+    await runGetWorkout(date);
   }));
 
 program
