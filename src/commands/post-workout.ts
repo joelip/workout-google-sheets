@@ -9,27 +9,14 @@ import {
   renderBlocksToText,
   splitContentByWorkoutSections,
 } from '../post-workout-rendering';
-import type { BlockWithDepth } from '../post-workout-rendering';
 import { R2ImageUploader } from '../r2';
-import type { R2Config } from '../r2';
-import fs from 'fs/promises';
-import { Client, isFullBlock } from '@notionhq/client';
-import type { BlockObjectResponse } from '@notionhq/client';
+import {
+  loadWorkoutPagesConfig,
+  NotionWorkoutPageClient,
+} from '../notion-workout-pages';
 import { OAuth2Client } from 'google-auth-library';
 import { google, sheets_v4 } from 'googleapis';
 import { spawn } from 'child_process';
-
-interface Config {
-  notion: {
-    token: string;
-    parentPageId: string;
-  };
-  r2?: R2Config;
-  defaults?: {
-    sheetOwner?: string;
-    sheetTitle?: string;
-  };
-}
 
 interface PostWorkoutOptions {
   sessionCell?: string;
@@ -65,11 +52,6 @@ type ResolvedPostWorkoutOptions =
     textMode: false;
     copyChunks: false;
   };
-
-async function loadConfig(): Promise<Config> {
-  const configContent = await fs.readFile('config.json', 'utf8');
-  return JSON.parse(configContent);
-}
 
 export function resolvePostWorkoutOptions(
   options: PostWorkoutOptions,
@@ -121,94 +103,6 @@ export function resolvePostWorkoutOptions(
     textMode: false,
     copyChunks: false,
   };
-}
-
-class PostWorkoutClient {
-  private notion: Client;
-  private parentPageId: string;
-
-  constructor(config: Config) {
-    this.notion = new Client({
-      auth: config.notion.token,
-    });
-    this.parentPageId = config.notion.parentPageId;
-  }
-
-  async findNestedPage(pageTitle: string): Promise<string | null> {
-    let hasMore = true;
-    let nextCursor: string | undefined;
-
-    while (hasMore) {
-      const response = await this.notion.blocks.children.list({
-        block_id: this.parentPageId,
-        page_size: 100,
-        start_cursor: nextCursor,
-      });
-
-      for (const block of response.results) {
-        if (!isFullBlock(block)) {
-          continue;
-        }
-
-        if (block.type === 'child_page' && block.child_page.title === pageTitle) {
-          return block.id;
-        }
-      }
-
-      hasMore = response.has_more;
-      nextCursor = response.next_cursor || undefined;
-    }
-
-    return null;
-  }
-
-  async extractPageContent(pageId: string): Promise<BlockWithDepth[]> {
-    return this.extractDescendants(pageId, 0);
-  }
-
-  private async listChildren(blockId: string): Promise<BlockObjectResponse[]> {
-    const children: BlockObjectResponse[] = [];
-    let hasMore = true;
-    let nextCursor: string | undefined;
-
-    while (hasMore) {
-      const response = await this.notion.blocks.children.list({
-        block_id: blockId,
-        page_size: 100,
-        start_cursor: nextCursor,
-      });
-
-      for (const block of response.results) {
-        if (isFullBlock(block)) {
-          children.push(block);
-        }
-      }
-
-      hasMore = response.has_more;
-      nextCursor = response.next_cursor || undefined;
-    }
-
-    return children;
-  }
-
-  private async extractDescendants(blockId: string, depth: number): Promise<BlockWithDepth[]> {
-    const descendants: BlockWithDepth[] = [];
-    const children = await this.listChildren(blockId);
-
-    for (const child of children) {
-      descendants.push({
-        ...child,
-        depth,
-      });
-
-      if (child.has_children) {
-        const childDescendants = await this.extractDescendants(child.id, depth + 1);
-        descendants.push(...childDescendants);
-      }
-    }
-
-    return descendants;
-  }
 }
 
 class ExtendedGoogleSheetsClient extends GoogleSheetsClient {
@@ -271,7 +165,7 @@ class ExtendedGoogleSheetsClient extends GoogleSheetsClient {
 }
 
 export async function runPostWorkout(options: PostWorkoutOptions): Promise<void> {
-  const config = await loadConfig();
+  const config = await loadWorkoutPagesConfig();
   const {
     sessionCell,
     notionPageTitle,
@@ -282,7 +176,7 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
   } = resolvePostWorkoutOptions(options, config.defaults);
 
   console.log('Connecting to Notion...');
-  const postWorkoutClient = new PostWorkoutClient(config);
+  const postWorkoutClient = new NotionWorkoutPageClient(config);
 
   console.log(`Searching for nested page: ${notionPageTitle}`);
   const pageId = await postWorkoutClient.findNestedPage(notionPageTitle);
