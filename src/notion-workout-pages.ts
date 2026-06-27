@@ -17,6 +17,13 @@ export interface WorkoutPagesConfig {
   };
 }
 
+export interface NestedWorkoutPage {
+  id: string;
+  title: string;
+  createdTime: string;
+  lastEditedTime: string;
+}
+
 export async function loadWorkoutPagesConfig(
   configPath: string = 'config.json'
 ): Promise<WorkoutPagesConfig> {
@@ -24,9 +31,29 @@ export async function loadWorkoutPagesConfig(
   return JSON.parse(configContent);
 }
 
+export function parseWorkoutDateInput(dateInput: string): ParsedWorkoutDate | null {
+  return parseWorkoutDate(dateInput.trim());
+}
+
+export function formatWorkoutISODate(dateInput: string): string {
+  const parsedDate = parseWorkoutDateInput(dateInput);
+
+  if (!parsedDate) {
+    fail(
+      `Invalid workout date "${dateInput}". Use YYYY-MM-DD or M/D/YYYY (for example, 2026-01-27 or 1/27/2026).`
+    );
+  }
+
+  return [
+    String(parsedDate.year).padStart(4, '0'),
+    String(parsedDate.month).padStart(2, '0'),
+    String(parsedDate.day).padStart(2, '0'),
+  ].join('-');
+}
+
 export function formatWorkoutDatePageTitle(dateInput: string): string {
   const trimmed = dateInput.trim();
-  const parsedDate = parseWorkoutDate(trimmed);
+  const parsedDate = parseWorkoutDateInput(trimmed);
 
   if (!parsedDate) {
     fail(
@@ -38,7 +65,7 @@ export function formatWorkoutDatePageTitle(dateInput: string): string {
 }
 
 export function formatWorkoutDatePageTitleFromDate(date: Date): string {
-  return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+    return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
 }
 
 export class NotionWorkoutPageClient {
@@ -53,6 +80,13 @@ export class NotionWorkoutPageClient {
   }
 
   async findNestedPage(pageTitle: string): Promise<string | null> {
+    const pages = await this.listNestedPages();
+    const page = pages.find((nestedPage) => nestedPage.title === pageTitle);
+    return page?.id ?? null;
+  }
+
+  async listNestedPages(): Promise<NestedWorkoutPage[]> {
+    const pages: NestedWorkoutPage[] = [];
     let hasMore = true;
     let nextCursor: string | undefined;
 
@@ -68,8 +102,13 @@ export class NotionWorkoutPageClient {
           continue;
         }
 
-        if (block.type === 'child_page' && block.child_page.title === pageTitle) {
-          return block.id;
+        if (block.type === 'child_page') {
+          pages.push({
+            id: block.id,
+            title: block.child_page.title,
+            createdTime: block.created_time,
+            lastEditedTime: block.last_edited_time,
+          });
         }
       }
 
@@ -77,7 +116,7 @@ export class NotionWorkoutPageClient {
       nextCursor = response.next_cursor || undefined;
     }
 
-    return null;
+    return pages;
   }
 
   async extractPageContent(pageId: string): Promise<BlockWithDepth[]> {
@@ -129,7 +168,7 @@ export class NotionWorkoutPageClient {
   }
 }
 
-interface ParsedWorkoutDate {
+export interface ParsedWorkoutDate {
   year: number;
   month: number;
   day: number;
