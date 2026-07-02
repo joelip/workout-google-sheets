@@ -59,9 +59,12 @@ Create a single daily workout entry in Notion from one Google Sheets cell:
 ./wgs create-day --day 1
 ./wgs create-day --day 4
 ./wgs create-day --session-cell B2
+./wgs create-day --combine=B2,C3
 ./wgs create-day --sheet-owner user@gmail.com --sheet-title "My Workouts" --session-cell B2
 ./wgs create-day --dry-run  # Output parsed data without creating Notion page
 ```
+
+Use `--combine` to create one Notion page from multiple cells. Cells are fetched and parsed in the order provided, so `--combine=B2,C3` places B2 content first and C3 content immediately after it.
 
 Day mapping for `--day`:
 - `1` -> `B2`

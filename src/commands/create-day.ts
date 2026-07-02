@@ -1,5 +1,6 @@
 import { GoogleSheetsAuth } from '../auth';
 import { GoogleSheetsClient } from '../sheets';
+import type { SheetValues } from '../sheets';
 import { NotionClient } from '../notion';
 import { formatWorkoutDatePageTitleFromDate } from '../notion-workout-pages';
 import { WorkoutParser } from '../parser';
@@ -22,6 +23,7 @@ interface CreateDayOptions {
   sheetTitle?: string;
   day?: string;
   sessionCell?: string;
+  combine?: string;
   dryRun?: boolean;
   output?: 'text' | 'json';
 }
@@ -33,9 +35,67 @@ const DAY_TO_CELL: Record<number, string> = {
   4: 'E2',
 };
 
+const CELL_REFERENCE_PATTERN = /^[A-Z]+\d+$/;
+
 async function loadConfig(): Promise<Config> {
   const configContent = await fs.readFile('config.json', 'utf8');
   return JSON.parse(configContent);
+}
+
+export function resolveCreateDayCells(options: Pick<CreateDayOptions, 'day' | 'sessionCell' | 'combine'>): string[] {
+  if (options.combine) {
+    if (options.day || options.sessionCell) {
+      fail('Use only one of --combine, --day, or --session-cell.');
+    }
+
+    const cells = options.combine
+      .split(',')
+      .map((cell) => cell.trim().toUpperCase())
+      .filter(Boolean);
+
+    if (cells.length === 0) {
+      fail('Missing cells for --combine. Use a comma-separated list such as B2,C3.');
+    }
+
+    for (const cell of cells) {
+      if (!CELL_REFERENCE_PATTERN.test(cell)) {
+        fail(`Invalid cell reference "${cell}" in --combine. Use references like B2 or C3.`);
+      }
+    }
+
+    return cells;
+  }
+
+  if (options.sessionCell) {
+    const sessionCell = options.sessionCell.trim().toUpperCase();
+
+    if (!CELL_REFERENCE_PATTERN.test(sessionCell)) {
+      fail(`Invalid --session-cell "${options.sessionCell}". Use a reference like B2.`);
+    }
+
+    return [sessionCell];
+  }
+
+  if (options.day) {
+    const day = Number(options.day);
+    if (!Number.isInteger(day) || !DAY_TO_CELL[day]) {
+      fail('Invalid --day value. Supported days are: 1, 2, 3, 4.');
+    }
+
+    return [DAY_TO_CELL[day]];
+  }
+
+  return [];
+}
+
+function getFirstCellValue(cellData: SheetValues): string | null {
+  const value = cellData[0]?.[0];
+
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  return String(value);
 }
 
 export async function runCreateDay(options: CreateDayOptions): Promise<void> {
@@ -43,23 +103,16 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
 
   const sheetOwner = options.sheetOwner || config.defaults?.sheetOwner;
   const sheetTitle = options.sheetTitle || config.defaults?.sheetTitle;
-  let sessionCell = options.sessionCell;
+  const sessionCells = resolveCreateDayCells(options);
 
-  if (!sessionCell && options.day) {
-    const day = Number(options.day);
-    if (!Number.isInteger(day) || !DAY_TO_CELL[day]) {
-      fail('Invalid --day value. Supported days are: 1, 2, 3, 4.');
-    }
-    sessionCell = DAY_TO_CELL[day];
-  }
-
-  if (!sheetOwner || !sheetTitle || !sessionCell) {
+  if (!sheetOwner || !sheetTitle || sessionCells.length === 0) {
     fail(
       'Missing required arguments. Please provide:\n'
       + '  --sheet-owner <email>     Google Sheets owner email\n'
       + '  --sheet-title <title>     Google Sheets document title\n'
       + '  --day <day>               Workout day number (1-4 maps to B2-E2)\n'
-      + '  --session-cell <cell>     Single cell reference (e.g., B2)\n\n'
+      + '  --session-cell <cell>     Single cell reference (e.g., B2)\n'
+      + '  --combine <cells>         Comma-separated cells to combine (e.g., B2,C3)\n\n'
       + 'Note: sheet-owner and sheet-title can be set as defaults in config.json'
     );
   }
@@ -80,18 +133,25 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
   console.log(`Found sheet: ${sheetInfo.name} (${sheetInfo.id})`);
   console.log(`URL: ${sheetInfo.url}`);
 
-  console.log(`Extracting data from cell: ${sessionCell}`);
+  console.log(`Extracting data from ${sessionCells.length === 1 ? 'cell' : 'cells'}: ${sessionCells.join(', ')}`);
 
-  const data = await sheetsClient.getCellRange(sheetInfo.id, sessionCell);
+  const cellContents: string[] = [];
 
-  if (!data || data.length === 0 || !data[0] || !data[0][0]) {
-    fail('No data found in the specified cell');
+  for (const cell of sessionCells) {
+    const data = await sheetsClient.getCellRange(sheetInfo.id, cell);
+    const cellContent = getFirstCellValue(data);
+
+    if (!cellContent) {
+      fail(`No data found in cell ${cell}`);
+    }
+
+    cellContents.push(cellContent);
   }
 
-  const cellContent = String(data[0][0]);
-
   console.log('Parsing workout data...');
-  let session = WorkoutParser.parseSingleCell(cellContent);
+  let session = WorkoutParser.mergeSessions(
+    cellContents.map((cellContent) => WorkoutParser.parseSingleCell(cellContent))
+  );
 
   // Resolve RM (rep max) references to actual weights
   session = await WorkoutParser.resolveRepMaxes(session);
@@ -101,10 +161,10 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
   // Handle --output option
   if (options.output === 'text') {
     console.log('\n--- Workout Content ---\n');
-    console.log(cellContent);
+    console.log(cellContents.join('\n\n'));
     console.log('\n--- End Workout Content ---\n');
   } else if (options.output === 'json') {
-    const output = JSON.stringify({ rawContent: cellContent, parsed: session }, null, 2);
+    const output = JSON.stringify({ sourceCells: sessionCells, rawContent: cellContents.join('\n\n'), parsed: session }, null, 2);
     await fs.writeFile('workout-output.json', output, 'utf8');
     console.log('JSON output written to workout-output.json');
   }

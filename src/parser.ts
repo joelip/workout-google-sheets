@@ -33,6 +33,20 @@ export class WorkoutParser {
     return this.parseCellData(cellContent, 1);
   }
 
+  static mergeSessions(sessions: WorkoutSession[]): WorkoutSession {
+    return {
+      sessionNumber: 1,
+      sections: sessions.flatMap((session) =>
+        session.sections.map((section) => ({
+          ...section,
+          header: section.header,
+          content: [...section.content],
+          youtubeLinks: [...section.youtubeLinks],
+        }))
+      ),
+    };
+  }
+
   private static parseCellData(cellContent: string, sessionNumber: number): WorkoutSession {
     const lines = cellContent.split('\n').map((line) => line.trim()).filter((line) => line);
     const sections: WorkoutSectionData[] = [];
