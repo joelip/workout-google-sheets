@@ -79,6 +79,18 @@ program
   }));
 
 program
+  .command('get-workouts')
+  .description('Get Notion workout pages for a date range as markdown')
+  .option('--start <date>', 'Start date (YYYY-MM-DD or M/D/YYYY)')
+  .option('--end <date>', 'End date (YYYY-MM-DD or M/D/YYYY)')
+  .option('--week-of <date>', 'Calendar week containing this date')
+  .option('--month <month>', 'Month in YYYY-MM format')
+  .action(withCommandErrorHandling(async (options) => {
+    const { runGetWorkouts } = await import('./commands/get-workouts.js');
+    await runGetWorkouts(options);
+  }));
+
+program
   .command('post-workout')
   .description('Post workout content from Notion page to Google Sheets as comments')
   .option('--session-cell <cell>', 'Cell reference (required unless --text or --sheets-chunked)')

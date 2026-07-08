@@ -81,6 +81,16 @@ Get a workout page from Notion by date as markdown:
 
 The command looks for a nested Notion page with the normalized date title, such as `1/27/2026`, and prints standalone markdown to stdout.
 
+### Get Workouts
+Get workout pages from Notion for a date range as markdown:
+```bash
+./wgs get-workouts --start 2026-01-26 --end 2026-02-01
+./wgs get-workouts --week-of 2026-01-27
+./wgs get-workouts --month 2026-01
+```
+
+The command lists dated nested Notion pages once, filters them by the requested range, sorts them by date, and prints one markdown document. `--week-of` uses a Monday-to-Sunday calendar week.
+
 ### Post Workout
 Post workout notes from a Notion page back to Google Sheets as cell comments:
 ```bash
