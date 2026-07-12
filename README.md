@@ -73,13 +73,39 @@ Day mapping for `--day`:
 - `4` -> `E2`
 
 ### Get Workout
-Get a workout page from Notion by date as markdown:
+Get a completed workout result from Notion by date as markdown:
 ```bash
 ./wgs get-workout 2026-01-27
+./wgs get-workout result 2026-01-27
 ./wgs get-workout 1/27/2026
 ```
 
-The command looks for a nested Notion page with the normalized date title, such as `1/27/2026`, and prints standalone markdown to stdout.
+The result command looks for a nested Notion page with the normalized date title, such as `1/27/2026`, and prints standalone markdown to stdout. The date-only form is kept as a shortcut for `get-workout result`.
+
+Get an original workout plan from Google Sheets:
+```bash
+./wgs get-workout plan --day 1
+./wgs get-workout plan --session-cell B2
+./wgs get-workout plan --combine=B2,C3
+```
+
+Plan commands read the original sheet cell text and print it without creating a Notion page.
+
+### Get Workouts
+Get completed workout results from Notion for a date range as markdown:
+```bash
+./wgs get-workouts --start 2026-01-26 --end 2026-02-01
+./wgs get-workouts results --start 2026-01-26 --end 2026-02-01
+./wgs get-workouts --week-of 2026-01-27
+./wgs get-workouts --month 2026-01
+```
+
+The results command lists dated nested Notion pages once, filters them by the requested range, sorts them by date, and prints one markdown document. `--week-of` uses a Monday-to-Sunday calendar week. The selector-less form is kept as a shortcut for `get-workouts results`.
+
+Get original workout plans from a Google Sheets range:
+```bash
+./wgs get-workouts plans --cell-range B2:E2
+```
 
 ### Post Workout
 Post workout notes from a Notion page back to Google Sheets as cell comments:

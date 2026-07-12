@@ -12,6 +12,7 @@
     "check-for-new-week": "bun run src/cli.ts check-for-new-week",
     "create-day": "bun run src/cli.ts create-day",
     "get-workout": "bun run src/cli.ts get-workout",
+    "get-workouts": "bun run src/cli.ts get-workouts",
     "post-workout": "bun run src/cli.ts post-workout"
   },
   "devDependencies": {
