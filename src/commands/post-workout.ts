@@ -377,10 +377,10 @@ export async function runPostWorkout(options: PostWorkoutOptions): Promise<void>
 
       for (const chunk of chunks) {
         const overLimitLabel = chunk.overSafeLimit
-          ? ' [Over 500 chars: single movement/sentence too long to split safely]'
+          ? ' [Over limit: content too long to split safely]'
           : '';
 
-        console.log(`\n[Chunk ${chunk.chunkNumber}/${chunk.chunkCount}] ${chunk.label} (${chunk.charCount} chars)${overLimitLabel}`);
+        console.log(`\n[Chunk ${chunk.chunkNumber}/${chunk.chunkCount}] (${chunk.charCount} chars)${overLimitLabel}`);
         console.log(`Paste into ${cellId} comment.`);
         console.log('--- START COPY ---');
         console.log(chunk.content);
