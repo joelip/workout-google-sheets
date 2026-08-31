@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
-import type { CachedWorkoutPage } from './workout-history';
+import {
+  createWorkoutContentHash,
+  type CachedWorkoutPage,
+} from './workout-history';
 import { DEFAULT_HISTORY_PAGE_LIMIT, WorkoutHistoryStore } from './workout-history';
 
 export interface D1WorkoutHistoryConfig {
@@ -282,8 +285,10 @@ export async function syncWorkoutHistoryWithD1(params: {
 }
 
 function pageFromD1Row(row: D1WorkoutPageRow): CachedWorkoutPage {
-  const contentHash = createHash('sha256').update(row.content_json).digest('hex');
-  if (contentHash !== row.content_hash) {
+  const rawBlocks = JSON.parse(row.content_json) as CachedWorkoutPage['rawBlocks'];
+  const normalizedHash = createWorkoutContentHash(rawBlocks);
+  const legacyHash = createHash('sha256').update(row.content_json).digest('hex');
+  if (row.content_hash !== normalizedHash && row.content_hash !== legacyHash) {
     throw new Error(`D1 workout history content hash mismatch for page ${row.id}`);
   }
   return {
@@ -292,8 +297,8 @@ function pageFromD1Row(row: D1WorkoutPageRow): CachedWorkoutPage {
     workoutDate: row.workout_date,
     createdTime: row.created_time,
     lastEditedTime: row.last_edited_time,
-    contentHash: row.content_hash,
-    rawBlocks: JSON.parse(row.content_json),
+    contentHash: normalizedHash,
+    rawBlocks,
     syncedAt: row.synced_at,
   };
 }

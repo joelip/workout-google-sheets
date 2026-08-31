@@ -42,6 +42,11 @@ export interface WorkoutHistorySyncSummary {
   syncedAt: string;
 }
 
+export function createWorkoutContentHash(rawBlocks: BlockWithDepth[]): string {
+  const normalizedBlocks = normalizeWorkoutContentForHash(rawBlocks);
+  return createHash('sha256').update(JSON.stringify(normalizedBlocks)).digest('hex');
+}
+
 interface WorkoutPageRow {
   id: string;
   title: string;
@@ -157,7 +162,7 @@ export class WorkoutHistoryStore {
     syncedAt: string;
   }): void {
     const contentJson = JSON.stringify(params.rawBlocks);
-    const contentHash = createHash('sha256').update(contentJson).digest('hex');
+    const contentHash = createWorkoutContentHash(params.rawBlocks);
     this.database.query(`
       INSERT INTO workout_pages (
         id, title, workout_date, created_time, last_edited_time,
@@ -185,7 +190,7 @@ export class WorkoutHistoryStore {
 
   upsertCachedPage(page: CachedWorkoutPage): void {
     const contentJson = JSON.stringify(page.rawBlocks);
-    const contentHash = createHash('sha256').update(contentJson).digest('hex');
+    const contentHash = createWorkoutContentHash(page.rawBlocks);
     if (contentHash !== page.contentHash) {
       throw new Error(`Workout history content hash mismatch for page ${page.id}`);
     }
@@ -320,16 +325,50 @@ export function resolveHistoryPath(path: string | undefined): string {
 }
 
 function pageFromRow(row: WorkoutPageRow): CachedWorkoutPage {
+  const rawBlocks = JSON.parse(row.content_json) as BlockWithDepth[];
+  const normalizedHash = createWorkoutContentHash(rawBlocks);
+  const legacyHash = createHash('sha256').update(row.content_json).digest('hex');
+  if (row.content_hash !== normalizedHash && row.content_hash !== legacyHash) {
+    throw new Error(`Workout history content hash mismatch for page ${row.id}`);
+  }
   return {
     id: row.id,
     title: row.title,
     workoutDate: row.workout_date,
     createdTime: row.created_time,
     lastEditedTime: row.last_edited_time,
-    contentHash: row.content_hash,
-    rawBlocks: JSON.parse(row.content_json) as BlockWithDepth[],
+    contentHash: normalizedHash,
+    rawBlocks,
     syncedAt: row.synced_at,
   };
+}
+
+function normalizeWorkoutContentForHash(
+  value: unknown,
+  path: string[] = []
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeWorkoutContentForHash(item, path));
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const isNotionImageFile = path.at(-2) === 'image' && path.at(-1) === 'file';
+  const normalized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (isNotionImageFile && key === 'expiry_time') {
+      continue;
+    }
+    normalized[key] = isNotionImageFile && key === 'url' && typeof child === 'string'
+      ? stripUrlQueryAndFragment(child)
+      : normalizeWorkoutContentForHash(child, [...path, key]);
+  }
+  return normalized;
+}
+
+function stripUrlQueryAndFragment(url: string): string {
+  return url.split(/[?#]/, 1)[0] ?? url;
 }
 
 async function mapWithConcurrency<T>(

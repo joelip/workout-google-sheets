@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { BlockWithDepth } from '../src/post-workout-rendering';
 import type { NestedWorkoutPage } from '../src/notion-workout-pages';
 import {
+  createWorkoutContentHash,
   syncWorkoutHistory,
   WorkoutHistoryStore,
 } from '../src/workout-history';
@@ -19,6 +20,37 @@ afterEach(() => {
 });
 
 describe('WorkoutHistoryStore', () => {
+  test('ignores transient Notion image URLs while hashing workout content', () => {
+    const first = [notionImageBlock(
+      'https://prod-files-secure.s3.us-west-2.amazonaws.com/account/image/photo.jpeg?X-Amz-Date=first',
+      '2026-08-31T03:00:00.000Z'
+    )];
+    const refreshed = [notionImageBlock(
+      'https://prod-files-secure.s3.us-west-2.amazonaws.com/account/image/photo.jpeg?X-Amz-Date=second',
+      '2026-08-31T20:00:00.000Z'
+    )];
+
+    expect(createWorkoutContentHash(first)).toBe(createWorkoutContentHash(refreshed));
+  });
+
+  test('includes stable image identity and workout text in content hashes', () => {
+    const original = [
+      notionImageBlock('https://prod-files-secure.s3.us-west-2.amazonaws.com/account/image/one.jpeg?signature=one', 'first'),
+      paragraphBlock('original text'),
+    ];
+    const differentImage = [
+      notionImageBlock('https://prod-files-secure.s3.us-west-2.amazonaws.com/account/image/two.jpeg?signature=two', 'second'),
+      paragraphBlock('original text'),
+    ];
+    const differentText = [
+      notionImageBlock('https://prod-files-secure.s3.us-west-2.amazonaws.com/account/image/one.jpeg?signature=three', 'third'),
+      paragraphBlock('changed text'),
+    ];
+
+    expect(createWorkoutContentHash(original)).not.toBe(createWorkoutContentHash(differentImage));
+    expect(createWorkoutContentHash(original)).not.toBe(createWorkoutContentHash(differentText));
+  });
+
   test('syncs only new or changed dated pages and removes stale entries', async () => {
     const store = makeStore();
     let pages = [
@@ -141,6 +173,21 @@ function paragraphBlock(text: string): BlockWithDepth {
     depth: 0,
     paragraph: {
       rich_text: [{ plain_text: text }],
+    },
+  } as unknown as BlockWithDepth;
+}
+
+function notionImageBlock(url: string, expiryTime: string): BlockWithDepth {
+  return {
+    id: 'image-block',
+    type: 'image',
+    depth: 0,
+    image: {
+      type: 'file',
+      file: {
+        url,
+        expiry_time: expiryTime,
+      },
     },
   } as unknown as BlockWithDepth;
 }
