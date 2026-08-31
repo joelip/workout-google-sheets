@@ -29,6 +29,8 @@ bun install
 ./wgs --help
 ```
 
+For an idempotent local setup, run `./scripts/setup.sh`. To provision or connect the shared Cloudflare D1 workout-history cache, export `CLOUDFLARE_API_TOKEN` and run `./scripts/setup.sh --with-d1`. See [D1 workout history sync](docs/d1-workout-history.md) for multi-computer setup and sync instructions.
+
 ## CLI Usage
 
 The `wgs` CLI provides commands for syncing workouts between Google Sheets and Notion.
@@ -124,6 +126,43 @@ Post workout notes from a Notion page back to Google Sheets as cell comments:
 ```
 
 If the page contains Notion-hosted image blocks and `r2` is configured, `post-workout` uploads those images to your public R2 bucket and inlines `Image: <public-url>` lines in the generated text.
+
+### Workout History and Reference Resolution
+
+Build or refresh a local history index of dated Notion workout pages:
+
+```bash
+./wgs history sync
+./wgs history sync --json
+```
+
+The first sync fetches page content for a newest-first rolling window of 48 dated workouts: 12 weeks at four sessions per week. Later syncs compare Notion edit timestamps and fetch only new or changed pages. Use `--limit <count>` to change the window. The index defaults to `~/.codex/state/workout-google-sheets/history.sqlite`; use `--state <path>` to select another database.
+
+Reconcile that local cache with the shared Cloudflare D1 copy before resolving references on another computer:
+
+```bash
+./wgs history cloud sync
+./wgs history cloud sync --json
+```
+
+The sync is bidirectional, uses Notion edit timestamps plus content hashes for conflict detection, and retains the same 48-workout window in both places. Setup and new-computer instructions are in [docs/d1-workout-history.md](docs/d1-workout-history.md).
+
+Preview workout instructions that reference results from earlier weeks:
+
+```bash
+./wgs resolve-references --date 2026-08-28
+./wgs resolve-references --date today --json
+```
+
+Resolution is a dry run by default and reads only the local index. The preview includes the exact replacement, source page, source text, confidence, and a deterministic plan hash. The initial production rule resolves Bike Erg, Row, and Ski Erg instructions based on the latest preceding seven-minute pace for that modality.
+
+After reviewing a preview, apply that exact plan with its hash:
+
+```bash
+./wgs resolve-references --date 2026-08-28 --apply --plan-hash <reviewed-hash>
+```
+
+Apply mode rechecks the live Notion page and every target block before writing, then reads the page back to verify all replacements. It stops for manual review if the page changed or an update cannot be verified.
 
 ### Global Options
 The `--sheet-owner` and `--sheet-title` options can be set as defaults in `config.json` to avoid repeating them.

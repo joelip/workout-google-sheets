@@ -202,6 +202,65 @@ program
     await runGetWorkoutDates(options);
   }));
 
+const historyProgram = program
+  .command('history')
+  .description('Maintain the local read-only index of completed Notion workouts');
+
+historyProgram
+  .command('sync')
+  .description('Fetch only new or changed dated Notion workout pages')
+  .option('--state <path>', 'History SQLite path')
+  .option('--limit <count>', 'Number of most recent dated pages to index (default: 48 / 12 weeks)')
+  .option('--json', 'Output machine-readable JSON')
+  .action(withCommandErrorHandling(async (options: {
+    state?: string;
+    limit?: string;
+    json?: boolean;
+  }) => {
+    const { runHistorySync } = await import('./commands/history.js');
+    await runHistorySync(options);
+  }));
+
+const historyCloudProgram = historyProgram
+  .command('cloud')
+  .description('Share the rolling workout history cache through Cloudflare D1');
+
+historyCloudProgram
+  .command('sync')
+  .description('Safely reconcile the local history cache with D1')
+  .option('--state <path>', 'History SQLite path')
+  .option('--config <path>', 'Configuration file path (default: config.json)')
+  .option('--limit <count>', 'Number of most recent dated pages to keep (default: 48 / 12 weeks)')
+  .option('--json', 'Output machine-readable JSON')
+  .action(withCommandErrorHandling(async (options: {
+    state?: string;
+    config?: string;
+    limit?: string;
+    json?: boolean;
+  }) => {
+    const { runHistoryCloudSync } = await import('./commands/history.js');
+    await runHistoryCloudSync(options);
+  }));
+
+program
+  .command('resolve-references')
+  .description('Preview or apply high-confidence values referenced from earlier workouts')
+  .requiredOption('--date <date>', 'Target workout date (YYYY-MM-DD, M/D/YYYY, or today)')
+  .option('--state <path>', 'History SQLite path')
+  .option('--json', 'Output machine-readable JSON')
+  .option('--apply', 'Apply the reviewed preview to Notion')
+  .option('--plan-hash <hash>', 'Plan hash from the reviewed dry run (required with --apply)')
+  .action(withCommandErrorHandling(async (options: {
+    date?: string;
+    state?: string;
+    json?: boolean;
+    apply?: boolean;
+    planHash?: string;
+  }) => {
+    const { runResolveReferences } = await import('./commands/resolve-references.js');
+    await runResolveReferences(options);
+  }));
+
 program
   .command('post-workout')
   .description('Post workout content from Notion page to Google Sheets as comments')

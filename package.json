@@ -1,5 +1,6 @@
 {
   "name": "workout-google-sheets",
+  "packageManager": "bun@1.4.0",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -7,6 +8,9 @@
     "wgs": "./src/cli.ts"
   },
   "scripts": {
+    "setup": "sh scripts/setup.sh",
+    "setup:d1": "bun scripts/setup-workout-state.ts",
+    "workflow-state": "bun .agents/skills/workout-google-sheets/scripts/workflow-state.ts",
     "wgs": "bun run src/cli.ts",
     "create-week": "bun run src/cli.ts create-week",
     "check-for-new-week": "bun run src/cli.ts check-for-new-week",
@@ -14,6 +18,9 @@
     "get-workout": "bun run src/cli.ts get-workout",
     "get-workouts": "bun run src/cli.ts get-workouts",
     "get-workout-dates": "bun run src/cli.ts get-workout-dates",
+    "history-sync": "bun run src/cli.ts history sync",
+    "history-cloud-sync": "bun run src/cli.ts history cloud sync",
+    "resolve-references": "bun run src/cli.ts resolve-references",
     "post-workout": "bun run src/cli.ts post-workout"
   },
   "devDependencies": {

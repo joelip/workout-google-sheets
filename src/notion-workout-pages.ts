@@ -1,5 +1,10 @@
 import fs from 'fs/promises';
-import { Client, isFullBlock } from '@notionhq/client';
+import {
+  APIErrorCode,
+  APIResponseError,
+  Client,
+  isFullBlock,
+} from '@notionhq/client';
 import type { BlockObjectResponse } from '@notionhq/client';
 import type { R2Config } from './r2';
 import type { BlockWithDepth } from './post-workout-rendering';
@@ -71,6 +76,8 @@ export function formatWorkoutDatePageTitleFromDate(date: Date): string {
 export class NotionWorkoutPageClient {
   private notion: Client;
   private parentPageId: string;
+  private nextReadRequestAt = 0;
+  private readQueue: Promise<void> = Promise.resolve();
 
   constructor(config: WorkoutPagesConfig) {
     this.notion = new Client({
@@ -91,11 +98,13 @@ export class NotionWorkoutPageClient {
     let nextCursor: string | undefined;
 
     while (hasMore) {
-      const response = await this.notion.blocks.children.list({
-        block_id: this.parentPageId,
-        page_size: 100,
-        start_cursor: nextCursor,
-      });
+      const response = await this.scheduleRead(() =>
+        this.notion.blocks.children.list({
+          block_id: this.parentPageId,
+          page_size: 100,
+          start_cursor: nextCursor,
+        })
+      );
 
       for (const block of response.results) {
         if (!isFullBlock(block)) {
@@ -123,17 +132,31 @@ export class NotionWorkoutPageClient {
     return this.extractDescendants(pageId, 0);
   }
 
+  async updateParagraphText(blockId: string, text: string): Promise<void> {
+    await this.notion.blocks.update({
+      block_id: blockId,
+      paragraph: {
+        rich_text: [{
+          type: 'text',
+          text: { content: text },
+        }],
+      },
+    });
+  }
+
   private async listChildren(blockId: string): Promise<BlockObjectResponse[]> {
     const children: BlockObjectResponse[] = [];
     let hasMore = true;
     let nextCursor: string | undefined;
 
     while (hasMore) {
-      const response = await this.notion.blocks.children.list({
-        block_id: blockId,
-        page_size: 100,
-        start_cursor: nextCursor,
-      });
+      const response = await this.scheduleRead(() =>
+        this.notion.blocks.children.list({
+          block_id: blockId,
+          page_size: 100,
+          start_cursor: nextCursor,
+        })
+      );
 
       for (const block of response.results) {
         if (isFullBlock(block)) {
@@ -165,6 +188,52 @@ export class NotionWorkoutPageClient {
     }
 
     return descendants;
+  }
+
+  private scheduleRead<T>(operation: () => Promise<T>): Promise<T> {
+    const scheduled = this.readQueue.then(async () => {
+      const delayMs = Math.max(0, this.nextReadRequestAt - Date.now());
+      if (delayMs > 0) {
+        await sleep(delayMs);
+      }
+
+      try {
+        return await withNotionReadRetry(operation);
+      } finally {
+        this.nextReadRequestAt = Date.now() + 350;
+      }
+    });
+    this.readQueue = scheduled.then(() => undefined, () => undefined);
+    return scheduled;
+  }
+}
+
+export async function withNotionReadRetry<T>(
+  operation: () => Promise<T>,
+  options: {
+    maxRetries?: number;
+    sleep?: (milliseconds: number) => Promise<void>;
+  } = {}
+): Promise<T> {
+  const maxRetries = options.maxRetries ?? 4;
+  const wait = options.sleep ?? sleep;
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (
+        !APIResponseError.isAPIResponseError(error)
+        || error.code !== APIErrorCode.RateLimited
+        || attempt >= maxRetries
+      ) {
+        throw error;
+      }
+
+      const retryAfterMilliseconds = readRetryAfterMilliseconds(error.headers);
+      const exponentialBackoffMilliseconds = 1_000 * (2 ** attempt);
+      await wait(Math.max(retryAfterMilliseconds, exponentialBackoffMilliseconds));
+    }
   }
 }
 
@@ -209,4 +278,21 @@ function validatedDate(date: ParsedWorkoutDate): ParsedWorkoutDate | null {
   }
 
   return date;
+}
+
+function readRetryAfterMilliseconds(headers: unknown): number {
+  if (!headers || typeof headers !== 'object' || !('get' in headers)) {
+    return 0;
+  }
+  const get = (headers as { get?: unknown }).get;
+  if (typeof get !== 'function') {
+    return 0;
+  }
+  const rawValue = get.call(headers, 'retry-after');
+  const seconds = typeof rawValue === 'string' ? Number(rawValue) : Number.NaN;
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : 0;
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

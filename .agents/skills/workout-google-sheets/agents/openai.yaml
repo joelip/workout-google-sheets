@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workout Google Sheets"
+  short_description: "Manage workout plans, weights, and inbox"
+  default_prompt: "Use $workout-google-sheets to manage today’s workout, fill prior loads safely, or handle workout-related email."
