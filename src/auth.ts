@@ -7,6 +7,17 @@ const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https:
 const TOKEN_PATH = 'token.json';
 const CREDENTIALS_PATH = 'credentials.json';
 
+export function assertInteractiveOAuthInput(
+  isTTY: boolean | undefined = process.stdin.isTTY
+): void {
+  if (!isTTY) {
+    throw new Error(
+      'Google OAuth authorization requires an interactive terminal. '
+      + 'Run this command manually in a terminal to reauthorize before running it from automation.'
+    );
+  }
+}
+
 export class GoogleSheetsAuth {
   private oAuth2Client: OAuth2Client | null = null;
 
@@ -72,6 +83,8 @@ export class GoogleSheetsAuth {
     if (!this.oAuth2Client) {
       throw new Error('OAuth2Client not initialized');
     }
+
+    assertInteractiveOAuthInput();
 
     const authUrl = this.oAuth2Client.generateAuthUrl({
       access_type: 'offline',

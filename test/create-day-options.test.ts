@@ -20,4 +20,8 @@ describe('resolveCreateDayCells', () => {
     expect(resolveCreateDayCells({ day: '1' })).toEqual(['B2']);
     expect(resolveCreateDayCells({ sessionCell: 'c3' })).toEqual(['C3']);
   });
+
+  test('preserves a tab-qualified session-cell reference', () => {
+    expect(resolveCreateDayCells({ sessionCell: "'Master Sheet 2026'!d13" })).toEqual(["'Master Sheet 2026'!D13"]);
+  });
 });

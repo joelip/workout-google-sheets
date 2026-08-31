@@ -96,7 +96,7 @@ program
   .option('--sheet-owner <email>', 'Google Sheets owner email')
   .option('--sheet-title <title>', 'Google Sheets document title')
   .option('--day <day>', 'Workout day number (1-4 maps to B2-E2)')
-  .option('--session-cell <cell>', 'Single cell reference (e.g., B2)')
+  .option('--session-cell <cell>', "Single cell reference (e.g., B2 or 'Sheet Name'!B2)")
   .option('--combine <cells>', 'Comma-separated cells to combine in order (e.g., B2,C3)')
   .option('--dry-run', 'Skip Notion page creation (use with --output to preview)')
   .option('--output <format>', 'Output format: text (console) or json (file)')

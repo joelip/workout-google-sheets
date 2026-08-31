@@ -35,7 +35,7 @@ const DAY_TO_CELL: Record<number, string> = {
   4: 'E2',
 };
 
-const CELL_REFERENCE_PATTERN = /^[A-Z]+\d+$/;
+const CELL_REFERENCE_PATTERN = /^(?:(?:'[^']+'|[A-Za-z0-9_]+)!)?[A-Za-z]+\d+$/;
 
 async function loadConfig(): Promise<Config> {
   const configContent = await fs.readFile('config.json', 'utf8');
@@ -50,30 +50,18 @@ export function resolveCreateDayCells(options: Pick<CreateDayOptions, 'day' | 's
 
     const cells = options.combine
       .split(',')
-      .map((cell) => cell.trim().toUpperCase())
+      .map((cell) => cell.trim())
       .filter(Boolean);
 
     if (cells.length === 0) {
       fail('Missing cells for --combine. Use a comma-separated list such as B2,C3.');
     }
 
-    for (const cell of cells) {
-      if (!CELL_REFERENCE_PATTERN.test(cell)) {
-        fail(`Invalid cell reference "${cell}" in --combine. Use references like B2 or C3.`);
-      }
-    }
-
-    return cells;
+    return cells.map((cell) => normalizeCellReference(cell, 'cell reference in --combine'));
   }
 
   if (options.sessionCell) {
-    const sessionCell = options.sessionCell.trim().toUpperCase();
-
-    if (!CELL_REFERENCE_PATTERN.test(sessionCell)) {
-      fail(`Invalid --session-cell "${options.sessionCell}". Use a reference like B2.`);
-    }
-
-    return [sessionCell];
+    return [normalizeCellReference(options.sessionCell, '--session-cell')];
   }
 
   if (options.day) {
@@ -86,6 +74,21 @@ export function resolveCreateDayCells(options: Pick<CreateDayOptions, 'day' | 's
   }
 
   return [];
+}
+
+function normalizeCellReference(cell: string, optionName: string): string {
+  const trimmedCell = cell.trim();
+
+  if (!CELL_REFERENCE_PATTERN.test(trimmedCell)) {
+    fail(`Invalid ${optionName} "${cell}". Use a reference like B2 or 'Sheet Name'!B2.`);
+  }
+
+  const separatorIndex = trimmedCell.lastIndexOf('!');
+  const sheetPrefix = separatorIndex >= 0 ? trimmedCell.slice(0, separatorIndex + 1) : '';
+  const cellPart = separatorIndex >= 0 ? trimmedCell.slice(separatorIndex + 1) : trimmedCell;
+  const match = cellPart.match(/^([A-Za-z]+)(\d+)$/);
+
+  return `${sheetPrefix}${match?.[1]?.toUpperCase() ?? ''}${match?.[2] ?? ''}`;
 }
 
 function getFirstCellValue(cellData: SheetValues): string | null {
@@ -111,7 +114,7 @@ export async function runCreateDay(options: CreateDayOptions): Promise<void> {
       + '  --sheet-owner <email>     Google Sheets owner email\n'
       + '  --sheet-title <title>     Google Sheets document title\n'
       + '  --day <day>               Workout day number (1-4 maps to B2-E2)\n'
-      + '  --session-cell <cell>     Single cell reference (e.g., B2)\n'
+      + "  --session-cell <cell>     Single cell reference (e.g., B2 or 'Sheet Name'!B2)\n"
       + '  --combine <cells>         Comma-separated cells to combine (e.g., B2,C3)\n\n'
       + 'Note: sheet-owner and sheet-title can be set as defaults in config.json'
     );
