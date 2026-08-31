@@ -102,6 +102,13 @@ Get completed workout results from Notion for a date range as markdown:
 
 The results command lists dated nested Notion pages once, filters them by the requested range, sorts them by date, and prints one markdown document. `--week-of` uses a Monday-to-Sunday calendar week. The selector-less form is kept as a shortcut for `get-workouts results`.
 
+List only the dates of the latest completed workouts, newest first:
+```bash
+./wgs get-workout-dates --limit 4
+```
+
+This command lists the nested Notion pages once and does not fetch or render their workout content. It prints one date per line for easy use in scripts.
+
 Get original workout plans from a Google Sheets range:
 ```bash
 ./wgs get-workouts plans --cell-range B2:E2

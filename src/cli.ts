@@ -194,6 +194,15 @@ program
   }));
 
 program
+  .command('get-workout-dates')
+  .description('List the dates of the latest completed Notion workouts')
+  .option('--limit <count>', 'Number of recent workout dates to list')
+  .action(withCommandErrorHandling(async (options: { limit?: string }) => {
+    const { runGetWorkoutDates } = await import('./commands/get-workout-dates.js');
+    await runGetWorkoutDates(options);
+  }));
+
+program
   .command('post-workout')
   .description('Post workout content from Notion page to Google Sheets as comments')
   .option('--session-cell <cell>', 'Cell reference (required unless --text or --sheets-chunked)')
