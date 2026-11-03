@@ -7,7 +7,7 @@ const MINOR_SECTION_PATTERN = /^(?:plyo|plyo progression|deep tier plyo|run\/wal
 
 export class WorkoutParser {
   private static readonly SECTION_HEADER_PATTERN = /^[A-Z]\d*\./;
-  private static readonly UPPER_LOWER_PATTERN = /^(upper body|lower body):?$/i;
+  private static readonly TOP_LEVEL_SECTION_PATTERN = /^(upper body|lower body|sprint):?$/i;
   private static readonly YOUTUBE_URL_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
   private static readonly ASTERISK_PREFIX_PATTERN = /^\*{2,}/;
 
@@ -63,7 +63,7 @@ export class WorkoutParser {
           content: [],
           youtubeLinks: [],
         };
-      } else if (this.isUpperLowerBody(line)) {
+      } else if (this.isTopLevelSection(line)) {
         if (currentSection) {
           sections.push(currentSection);
         }
@@ -128,8 +128,8 @@ export class WorkoutParser {
     return this.SECTION_HEADER_PATTERN.test(line.trim());
   }
 
-  private static isUpperLowerBody(line: string): boolean {
-    return this.UPPER_LOWER_PATTERN.test(line.trim());
+  private static isTopLevelSection(line: string): boolean {
+    return this.TOP_LEVEL_SECTION_PATTERN.test(line.trim());
   }
 
   private static isMinorSection(line: string): boolean {
